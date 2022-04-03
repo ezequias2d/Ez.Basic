@@ -57,6 +57,7 @@ namespace Ez.Basic.Compiler.Lexer
      */
     public enum TokenType
     {
+        None,
         Semicolon,      // ; used for comments
         LeftParen,      // (
         RightParen,     // )
@@ -94,6 +95,7 @@ namespace Ez.Basic.Compiler.Lexer
 
         // declaration
         Def,        // function
+        Sub,
         Mould,      // basically class
         Module,     // basically static class
         Global,     // exposes globaly
@@ -111,6 +113,9 @@ namespace Ez.Basic.Compiler.Lexer
         Goto,
         If,
         Next,
+        Else,
+        To,
+        Step,
         Return,
         End,
 
