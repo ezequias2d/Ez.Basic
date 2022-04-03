@@ -11,13 +11,13 @@ namespace Ez.Basic.Compiler.Lexer
             m_root = MakeTrie(keywords);
         }
 
-        public bool TryGet(ReadOnlySpan<char> keyword, out T value)
+        public bool TryGet(ReadOnlyMemory<char> keyword, out T value)
         {
             var current = m_root;
 
             for(var i = 0; i < keyword.Length; i++)
             {
-                var c = keyword[i];
+                var c = keyword.Span[i];
                 var index = current.Children.BinarySearch(new Node(c));
 
                 if (index < 0)

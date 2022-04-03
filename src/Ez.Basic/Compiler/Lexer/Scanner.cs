@@ -9,13 +9,13 @@ namespace Ez.Basic.Compiler.Lexer
     public ref struct Scanner
     {
         private readonly Trie<TokenType> m_keywords;
-        private ReadOnlySpan<char> m_source;
+        private ReadOnlyMemory<char> m_source;
         private int m_current;
         private int m_line; 
 
         public Scanner(string source)
         {
-            m_source = source.AsSpan();
+            m_source = source.AsMemory();
             m_current = 0;
             m_line = 0;
             m_keywords = MakeKeywordsTrie();
@@ -149,19 +149,19 @@ namespace Ez.Basic.Compiler.Lexer
         {
             if (m_current == m_source.Length)
                 return '\0';
-            return m_source[m_current];
+            return m_source.Span[m_current];
         }
 
         private char PeekNext()
         {
             if (IsAtEnd())
                 return '\0';
-            return m_source[m_current + 1];
+            return m_source.Span[m_current + 1];
         }
 
         private bool Match(char v)
         {
-            if (IsAtEnd() || m_source[m_current] != v)
+            if (IsAtEnd() || m_source.Span[m_current] != v)
                 return false;
             m_current++;
             return true;
@@ -169,12 +169,12 @@ namespace Ez.Basic.Compiler.Lexer
 
         private char Advance()
         {
-            return m_source[m_current++];
+            return m_source.Span[m_current++];
         }
 
         private Token ErrorToken(string message)
         {
-            return new Token(TokenType.Error, message.AsSpan(), m_line);
+            return new Token(TokenType.Error, message.AsMemory(), m_line);
         }
 
         private Token MakeToken(TokenType type)
@@ -182,7 +182,7 @@ namespace Ez.Basic.Compiler.Lexer
             return new Token(type, m_source.Slice(0, m_current), m_line);
         }
 
-        private bool IsAtEnd()
+        public bool IsAtEnd()
         {
             return m_source.Length == m_current;
         }
