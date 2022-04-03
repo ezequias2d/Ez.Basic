@@ -32,9 +32,11 @@ namespace Ez.Basic.VirtualMachine
             return m_code.Get<T>(location);
         }
 
-        public int Write<T>(in T value) where T : unmanaged
+        public int Write<T>(in T value, int line = -1) where T : unmanaged
         {
-            return m_code.Append(value);
+            var pc = m_code.Append(value);
+            LineNumberTable.AddLine(pc, line);
+            return pc;
         }
 
         public int WriteVarint(int value)

@@ -6,7 +6,8 @@ namespace Ez.Basic.VirtualMachine.Attributes
     public class LineNumberTableAttribute : IAttribute
     {
         private List<Entry> m_list;
-        private int m_maxPc;
+        private int m_lastPc;
+        private int m_lastLine;
         public string Name { get; set; }
 
         //public LineNumberEntry[] Table { get; set; }
@@ -15,16 +16,20 @@ namespace Ez.Basic.VirtualMachine.Attributes
         {
             Name = nameof(LineNumberTableAttribute);
             m_list = new List<Entry>();
-            m_maxPc = -1;
+            m_lastPc = -1;
         }
 
         public void AddLine(int pc, int line)
         {
-            if (pc <= m_maxPc)
+            if (pc <= m_lastPc)
                 throw new ArgumentOutOfRangeException(nameof(pc));
 
-            m_maxPc = pc;
-            m_list.Add(new Entry(pc, line));
+            m_lastPc = pc;
+            if(line > m_lastLine)
+            {
+                m_list.Add(new Entry(pc, line));
+                m_lastLine = line;
+            }
         }
 
         public int GetLine(int pc)
