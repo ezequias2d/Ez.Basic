@@ -1,8 +1,21 @@
-﻿using Ez.Basic.Compiler.Lexer;
+﻿using Ez.Basic;
+using Ez.Basic.Compiler.Lexer;
 using Ez.Basic.VirtualMachine;
+using Microsoft.Extensions.Logging;
 using System.Text;
 
 Console.WriteLine("Ez.Basic");
+
+using ILoggerFactory loggerFactory =
+            LoggerFactory.Create(builder =>
+                builder.AddSimpleConsole(options =>
+                {
+                    options.IncludeScopes = true;
+                    options.SingleLine = true;
+                    options.TimestampFormat = "hh:mm:ss ";
+                }));
+
+ILogger<Program> logger = loggerFactory.CreateLogger<Program>();
 
 var vm = new VM();
 
@@ -39,21 +52,36 @@ chunk.Write(Opcode.Return);
 
 vm.Interpret(chunk);
 
-Scanner scanner = new(@"
-def pow(x, y)
+{
+    Scanner scanner = new(@"
+    def pow(x, y)
+        let tmp = 1
+        let p = 0
+        while p < y
+            tmp = tmp * x
+            p = p + 1
+        next
+        return tmp
+    end");
+
+    Token token;
+
+    do
+    {
+        token = scanner.ScanToken();
+        Console.WriteLine(token.ToString());
+    } while (token.Type != TokenType.EoF);
+}
+
+{
+    var source = @"
     let tmp = 1
     let p = 0
     while p < y
         tmp = tmp * x
         p = p + 1
     next
-    return tmp
-end");
-
-Token token;
-
-do
-{
-    token = scanner.ScanToken();
-    Console.WriteLine(token.ToString());
-} while (token.Type != TokenType.EoF);
+    return tmp";
+    BasicCompiler c = new BasicCompiler(logger);
+    c.Compile(source, null);
+}
