@@ -1,4 +1,5 @@
 ﻿using Ez.Basic.VirtualMachine.Attributes;
+using Ez.Basic.VirtualMachine.Objects;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -29,7 +30,14 @@ namespace Ez.Basic.VirtualMachine
         public int Count => m_code.Count;
         public T Read<T>(int location) where T : unmanaged
         {
+            //if(location >= Count)
+            //    return m_code.Get<T>(Count - 1);
             return m_code.Get<T>(location);
+        }
+
+        public T Peek<T>() where T : unmanaged
+        {
+            return m_code.Peek<T>();
         }
 
         public int Write<T>(in T value, int line = -1) where T : unmanaged
@@ -49,14 +57,24 @@ namespace Ez.Basic.VirtualMachine
             return m_code.ReadVarint(location, out value);
         }
 
-        public int AddConstant(in Value value)
+        public int AddNumericConstant(in Value value)
         {
-            return m_constants.AddConstant(value);
+            return m_constants.AddNumericConstant(value);
         }
 
-        public Value GetConstant(in int index)
+        public int AddStringConstant(in string value)
         {
-            return m_constants.GetConstant(index);
+            return m_constants.AddStringConstant(value);
+        }
+
+        public double GetNumericConstant(in int index)
+        {
+            return m_constants.GetNumericConstant(index);
+        }
+
+        public BasicString GetConstantString(in int index)
+        {
+            return m_constants.GetStringConstant(index);
         }
     }
 }

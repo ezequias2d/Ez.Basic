@@ -50,6 +50,13 @@ namespace Ez.Basic.VirtualMachine
             return tmp;
         }
 
+        public T Peek<T>() where T : unmanaged
+        {
+            var size = SizeOf<T>();
+            var index = m_count - size;
+            return Get<T>(index);
+        }
+
         public int ReadVarint(int location, out int value)
         {
             int result = 0;

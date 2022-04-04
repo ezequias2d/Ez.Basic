@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using static Ez.Basic.Compiler.Parser.Ast;
 
@@ -72,11 +73,12 @@ namespace Ez.Basic.Compiler.Parser
 
         private void Error(string message)
         {
-            ErrorAt(Previous, message);
+            ErrorAt(Current, message);
         }
 
         private ParserException ErrorAt(Token token, string message)
         {
+            Debug.Assert(false);
             var sb = new StringBuilder();
 
             sb.Append($"[line {token.Line}] Error");
@@ -126,6 +128,7 @@ namespace Ez.Basic.Compiler.Parser
             if (Match(TokenType.For)) return ForStatement();
             if (Match(TokenType.If)) return IfStatement();
             if (Match(TokenType.Print)) return PrintStatement();
+            if (Match(TokenType.Return)) return ReturnStatement();
             if (Match(TokenType.While)) return WhileStatement();
             if (Match(TokenType.Do)) return Block(TokenType.Next);
 
@@ -153,7 +156,7 @@ namespace Ez.Basic.Compiler.Parser
             Node body = mainBody;
 
 
-            body = new Block(token, mainBody.EndToken, new Node[]
+            body = MakeBlock(token, mainBody.EndToken, new Node[]
             {
                 body,
                 step != null 
@@ -166,7 +169,7 @@ namespace Ez.Basic.Compiler.Parser
             body = MakeWhile(token, condition, body);
 
             // create let declaration and initializer.
-            body = new Block(token, mainBody.EndToken, new Node[]
+            body = MakeBlock(token, mainBody.EndToken, new Node[]
             {
                 MakeLet(name, initializer),
                 body
@@ -193,7 +196,7 @@ namespace Ez.Basic.Compiler.Parser
         {
             var printToken = Previous;
             Node expr = Expression();
-            while (Match(TokenType.Semicolon))
+            while (Match(TokenType.Comma))
             {
                 var op = Previous;
                 var right = Expression();
@@ -201,6 +204,13 @@ namespace Ez.Basic.Compiler.Parser
             }
 
             return MakeStatement(NodeKind.Print, printToken, expr);
+        }
+
+        internal Node ReturnStatement()
+        {
+            var keyword = Previous;
+            var value = Expression();
+            return MakeStatement(NodeKind.Return, keyword, value);
         }
 
         internal Node WhileStatement() 
@@ -222,6 +232,8 @@ namespace Ez.Basic.Compiler.Parser
         {
             try
             {
+                if (Match(TokenType.Def))
+                    return DefDeclaration();
                 if (Match(TokenType.Let))
                     return LetDeclaration();
 
@@ -232,6 +244,33 @@ namespace Ez.Basic.Compiler.Parser
                 Synchronize();
                 return null;
             }
+        }
+
+        internal Node DefDeclaration()
+        {
+            Consume(TokenType.Identifier, "Expect a identifier for function.");
+            var name = Previous;
+
+            Consume(TokenType.LeftParen, "Expect a '(' after function name.");
+            var parameters = Array.Empty<Token>();
+            if(!Check(TokenType.RightParen))
+            {
+                var list = new List<Token>();
+                do
+                {
+                    if (list.Count >= 255)
+                        throw ErrorAt(Current, "Can't have more than 255 parameters.");
+
+                    Consume(TokenType.Identifier, "Expect parameter name.");
+                    list.Add(Previous);
+                } while (Match(TokenType.Comma));
+                parameters = list.ToArray();
+            }
+
+            Consume(TokenType.RightParen, "Expect ')' after parameters.");
+            var body = Block(TokenType.End);
+
+            return MakeDef(name, parameters, body);
         }
 
         internal Node LetDeclaration()
@@ -246,7 +285,7 @@ namespace Ez.Basic.Compiler.Parser
             return MakeLet(name, initializer);
         }
 
-        internal Block Block(TokenType end, TokenType alternativeEnd = TokenType.None)
+        internal Node Block(TokenType end, TokenType alternativeEnd = TokenType.None)
         {
             var token = Previous;
             var statements = new List<Node>();
@@ -255,7 +294,8 @@ namespace Ez.Basic.Compiler.Parser
                 statements.Add(Declaration());
 
             ConsumeAny(end, alternativeEnd, $"Expect '{end}' after the code block.");
-            return new Block(token, Previous, statements.ToArray());
+
+            return MakeBlock(token, Previous, statements.ToArray());
         }
 
         internal Node Expression()
@@ -387,6 +427,7 @@ namespace Ez.Basic.Compiler.Parser
 
             return expr;
         }
+
         internal Node Unary()
         {
             if(Match(TokenType.Bang, TokenType.Minus))
@@ -397,7 +438,36 @@ namespace Ez.Basic.Compiler.Parser
                 return GetNode(type, op, null, right);
             }
 
-            return Primary();
+            return Call();
+        }
+
+        internal Node Call()
+        {
+            var expr = Primary();
+            while(Match(TokenType.LeftParen))
+            {
+                expr = FinishCall(expr);
+            }
+
+            return expr;
+        }
+
+        private Node FinishCall(Node callee)
+        {
+            if (Match(TokenType.RightParen))
+                return MakeCall(Previous, callee, Array.Empty<Node>());
+
+            var arguments = new List<Node>();
+            do
+            {
+                if (arguments.Count >= 255)
+                    throw ErrorAt(m_current, "Can't have more than 255 arguments.");
+
+                arguments.Add(Expression());
+            } while (Match(TokenType.Comma));
+
+            Consume(TokenType.RightParen, "Expect ')' after artuments.");
+            return MakeCall(Previous, callee, arguments.ToArray());
         }
 
         internal Node Primary()
@@ -419,8 +489,9 @@ namespace Ez.Basic.Compiler.Parser
 
             if(Match(TokenType.LeftParen))
             {
-                var expr = Expression();
-                Consume(TokenType.RightBracket, "Expect ')' after expression.");
+                var expr = Expression(); 
+                Consume(TokenType.RightParen, "Expect ')' after expression.");
+                return expr;
             }
 
             throw ErrorAt(Current, "Expect expression");
@@ -428,10 +499,8 @@ namespace Ez.Basic.Compiler.Parser
 
         private Node GetNode(NodeType type, Token token, Node childLeft = null, Node childRight = null, Node condition = null)
         {
-            try
+            if (m_pool.TryPop(out var result))
             {
-                var result = m_pool.Pop();
-                
                 result.Type = type;
                 result.Token = token;
                 result.ChildLeft = childLeft;
@@ -440,10 +509,7 @@ namespace Ez.Basic.Compiler.Parser
 
                 return result;
             }
-            catch (InvalidOperationException)
-            {
-                return new Node(type, token, childLeft, childRight, condition);
-            }
+            return new Node(type, token, childLeft, childRight, condition);
         }
 
         private bool Match(TokenType type1, TokenType type2, TokenType type3, TokenType type4)
@@ -493,6 +559,14 @@ namespace Ez.Basic.Compiler.Parser
             return GetNode(type, token, thenBranch, elseBranch, condition);
         }
 
+        private Node MakeDef(Token name, Token[] parameters, Node body)
+        {
+            var type = new NodeType(NodeClass.Stmt, NodeKind.Def);
+            var node = GetNode(type, name, null, body);
+            node.Parameters = parameters;
+            return node;
+        }
+
         private Node MakeLet(Token name, Node initializer)
         {
             return MakeStatement(NodeKind.Let, name, initializer);
@@ -502,6 +576,23 @@ namespace Ez.Basic.Compiler.Parser
         {
             var type = new NodeType(NodeClass.Stmt, NodeKind.While);
             return GetNode(type, token, body, null, condition);
+        }
+
+        private Node MakeBlock(Token token, Token endToken, Node[] statements)
+        {
+            var type = new NodeType(NodeClass.Stmt, NodeKind.Block);
+            var node = GetNode(type, token);
+            node.EndToken = endToken;
+            node.Data = statements;
+            return node;
+        }
+
+        private Node MakeCall(Token token, Node callee, Node[] arguments)
+        {
+            var type = new NodeType(NodeClass.Expr, NodeKind.Call);
+            var node = GetNode(type, token, callee);
+            node.Data = arguments;
+            return node;
         }
 
         private Node MakeBinary(Token op, Node left, Node right)

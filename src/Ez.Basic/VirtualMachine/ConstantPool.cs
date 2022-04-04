@@ -1,29 +1,49 @@
-﻿using System;
+﻿using Ez.Basic.VirtualMachine.Objects;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Ez.Basic.VirtualMachine
 {
     internal class ConstantPool
     {
-        private List<Value> m_array;
+        private List<double> m_numeric_constants;
+        private List<BasicString> m_string_constants;
 
         public ConstantPool()
         {
-            m_array = new List<Value>();
+            m_numeric_constants = new List<double>();
+            m_string_constants = new List<BasicString>();
         }
 
-        public int AddConstant(in Value value)
+        public int AddNumericConstant(in double value)
         {
-            m_array.Add(value);
-            return m_array.Count - 1;
+            var index = m_numeric_constants.IndexOf(value);
+            if(index == -1)
+            {
+                m_numeric_constants.Add(value);
+                index = m_numeric_constants.Count - 1;
+            }
+            return index;
         }
 
-        public Value GetConstant(in int index)
+        public int AddStringConstant(string value)
         {
-            return m_array[index];
+            var index = m_string_constants.FindIndex(s => s.Value.Equals(value));
+            if(index == -1)
+            {
+                m_string_constants.Add(new BasicString(value));
+                index = m_string_constants.Count - 1;
+            }
+            return index;
+        }
+
+        public double GetNumericConstant(in int index)
+        {
+            return m_numeric_constants[index];
+        }
+
+        public BasicString GetStringConstant(in int index)
+        {
+            return m_string_constants[index];
         }
     }
 }

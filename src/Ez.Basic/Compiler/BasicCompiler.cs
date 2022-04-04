@@ -1,4 +1,5 @@
-﻿using Ez.Basic.Compiler.Lexer;
+﻿using Ez.Basic.Compiler.CodeGen;
+using Ez.Basic.Compiler.Lexer;
 using Ez.Basic.Compiler.Parser;
 using Ez.Basic.VirtualMachine;
 using Microsoft.Extensions.Logging;
@@ -11,12 +12,14 @@ namespace Ez.Basic
         private ILogger m_logger;
 
         private BasicParser m_parser;
+        private CodeGenerator m_codeGen;
         private Chunk m_compilingChunk;
 
         public BasicCompiler(ILogger logger)
         {
             m_logger = logger;
             m_parser = default;
+            m_codeGen = default;
             m_compilingChunk = null;
         }
 
@@ -27,14 +30,20 @@ namespace Ez.Basic
             m_parser = new BasicParser(m_logger, scanner);
 
             m_parser.Advance();
+
             var block = m_parser.Block(TokenType.EoF, TokenType.EoF);
+
+            if (m_parser.HadError)
+                return false;
+
+            m_codeGen = new CodeGenerator(m_logger, m_compilingChunk, block);
+            if (!m_codeGen.CodeGen())
+                return false;
 
             Console.WriteLine(block.ToString());
 
-            //m_parser.Consume(TokenType.EoF, "Expect end of expression.");
-
-            //EndCompile();
-            return !m_parser.HadError;
+            EndCompile();
+            return true;
         }
 
         private void EndCompile()

@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Ez.Basic.Compiler.Parser
 {
-    internal class Ast
+    internal static class Ast
     {
 
         public enum NodeClass
@@ -83,9 +83,12 @@ namespace Ez.Basic.Compiler.Parser
         {
             public NodeType Type;
             public Token Token;
+            public Token EndToken;
             public Node ChildLeft;
             public Node ChildRight;
             public Node Condition;
+            public Node[] Data;
+            public Token[] Parameters;
 
             public Node(NodeType type, Token token, Node childLeft, Node childRight, Node condition)
             {
@@ -97,6 +100,13 @@ namespace Ez.Basic.Compiler.Parser
             }
 
             public override string ToString()
+            {
+                if (Type.Kind == NodeKind.Block)
+                    return ToStringBlock();
+                return ToStringNode();
+            }
+
+            private string ToStringNode()
             {
                 var sb = new StringBuilder();
 
@@ -132,26 +142,13 @@ namespace Ez.Basic.Compiler.Parser
 
                 return sb.ToString();
             }
-        }
 
-        public class Block : Node
-        {
-            public ReadOnlyMemory<Node> Statements;
-            public Token EndToken;
-
-            public Block(Token token, Token endToken, ReadOnlyMemory<Node> statements) 
-                : base(new NodeType(NodeClass.Stmt, NodeKind.Block), token, null, null, null)
-            {
-                Statements = statements;
-                EndToken = endToken;
-            }
-
-            public override string ToString()
+            private string ToStringBlock()
             {
                 var sb = new StringBuilder();
                 sb.Append($"{Token.Lexeme} \n");
 
-                foreach(var stmt in Statements.Span)
+                foreach (var stmt in Data)
                 {
                     sb.Append("\t");
                     if (stmt != null)

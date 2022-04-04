@@ -1,6 +1,7 @@
 ﻿using Ez.Basic.VirtualMachine;
+using Ez.Basic.VirtualMachine.Objects;
+using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -9,12 +10,14 @@ namespace Ez.Basic.VirtualMachine
 {
     public class VM
     {
+        private readonly ILogger m_logger;
         private Chunk m_chunk;
-        private readonly Stack m_stack;
+        private readonly Stack<Value> m_stack;
         private int m_PC;
-        public VM()
+        public VM(ILogger logger)
         {
-            m_stack = new Stack();
+            m_logger = logger;
+            m_stack = new Stack<Value>();
         }
 
         public InterpretResult Interpret(Chunk chunk)
@@ -45,48 +48,134 @@ namespace Ez.Basic.VirtualMachine
                     Console.WriteLine(sb.ToString());
                 }
                 var opcode = ReadOpcode();
-                Value a;
-                Value b;
+                Value a, b;
                 switch(opcode)
                 {
-                    case Opcode.Constant:
-                        var constant = ReadConstant();
+                    #region constants
+                    case Opcode.NumericConstant:
+                        var constant = ReadNumericConstant();
                         Push(constant);
                         break;
+                    case Opcode.StringConstant:
+
+                        break;
+                    case Opcode.Null: Push(Value.MakeNull()); break;
+                    case Opcode.True: Push(true); break;
+                    case Opcode.False: Push(false); break;
+                    case Opcode.Pop: Pop(); break;
+                    #endregion
+                    #region logical
+                    case Opcode.Equal:
+                        b = Pop();
+                        a = Pop();
+                        Push(a == b);
+                        break;
+                    case Opcode.NotEqual:
+                        b = Pop();
+                        a = Pop();
+                        Push(a != b);
+                        break;
+                    case Opcode.Greater:
+                        if (!PopOperators(ValueType.Number, out a, out b))
+                            return InterpretResult.RuntimeError;
+                        Push(a > b);
+                        break;
+                    case Opcode.GreaterEqual:
+                        if (!PopOperators(ValueType.Number, out a, out b))
+                            return InterpretResult.RuntimeError;
+                        Push(a >= b);
+                        break;
+                    case Opcode.Less:
+                        if (!PopOperators(ValueType.Number, out a, out b))
+                            return InterpretResult.RuntimeError;
+                        Push(a < b);
+                        break;
+                    case Opcode.LessEqual:
+                        if (!PopOperators(ValueType.Number, out a, out b))
+                            return InterpretResult.RuntimeError;
+                        Push(a <= b);
+                        break;
+                    case Opcode.Not:
+                        Push(!Pop());
+                        break;
+                    #endregion logical
+                    #region arithmetic
                     case Opcode.Add:
                         b = Pop();
                         a = Pop();
-                        Push(a + b);
+                        if (a.IsNumber && b.IsNumber)
+                            Push(a + b);
+                        //else if (a.IsString && b.IsString)
+                        //    Push(a.String + b.String);
+                        else
+                        {
+                            //RuntimeError($"Operands must be two numbers or two strings.");
+                            RuntimeError($"Operands must be two numbers.");
+                            return InterpretResult.RuntimeError;
+                        }
                         break;
                     case Opcode.Subtract:
-                        b = Pop();
-                        a = Pop();
+                        if (!PopOperators(ValueType.Number, out a, out b))
+                            return InterpretResult.RuntimeError;
                         Push(a - b);
                         break;
                     case Opcode.Multiply:
-                        b = Pop();
-                        a = Pop();
+                        if (!PopOperators(ValueType.Number, out a, out b))
+                            return InterpretResult.RuntimeError;
                         Push(a * b);
                         break;
                     case Opcode.Divide:
-                        b = Pop();
-                        a = Pop();
+                        if (!PopOperators(ValueType.Number, out a, out b))
+                            return InterpretResult.RuntimeError;
                         Push(a / b);
                         break;
                     case Opcode.Negate:
+                        if(Peek().Type != ValueType.Number)
+                        {
+                            RuntimeError("Operand must be a number.");
+                            return InterpretResult.RuntimeError;
+                        }
                         Push(-Pop());
                         break;
+                    #endregion
+                    case Opcode.Concatenate:
+                        b = Pop();
+                        a = Pop();
+                        Push(new BasicString(a.ToString() + b.ToString()));
+                        break;
+                    case Opcode.Print:
+                        a = Pop();
+                        Console.WriteLine(a.ToString());
+                        break;
                     case Opcode.Return:
-                        var value = Pop();
-                        Console.WriteLine($"Return value is {value}");
+                        //var value = Pop();
+                        //Console.WriteLine($"Return value is {value}");
                         return InterpretResult.Ok;
                 }
             }
         }
 
+        private bool PopOperators(ValueType type, out Value a, out Value b)
+        {
+            b = Pop();
+            a = Pop();
+
+            if(a.Type != type || b.Type != type)
+            {
+                RuntimeError($"Operands must be '{type}'.");
+                return false;
+            }
+            return true;
+        }
+
         private void Push(in Value value)
         {
             m_stack.Push(value);
+        }
+
+        private Value Peek()
+        {
+            return m_stack.Peek();
         }
 
         private Value Pop()
@@ -99,10 +188,17 @@ namespace Ez.Basic.VirtualMachine
             return m_chunk.Read<Opcode>(m_PC++);
         }
 
-        private Value ReadConstant()
+        private double ReadNumericConstant()
         {
             m_PC += m_chunk.ReadVariant(m_PC, out var constantIndex);
-            return m_chunk.GetConstant(constantIndex);
+            return m_chunk.GetNumericConstant(constantIndex);
+        }
+
+        private void RuntimeError(string message)
+        {
+            var line = m_chunk.LineNumberTable.GetLine(m_PC);
+            m_logger.LogError($"[line {line}] in script");
+            m_stack.Reset();
         }
     }
 }
