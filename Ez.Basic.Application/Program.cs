@@ -3,6 +3,7 @@ using Ez.Basic.Compiler.Lexer;
 using Ez.Basic.VirtualMachine;
 using Microsoft.Extensions.Logging;
 using System.Text;
+using GC = Ez.Basic.VirtualMachine.GC;
 
 Console.WriteLine("Ez.Basic");
 
@@ -87,12 +88,13 @@ ILogger<Program> logger = loggerFactory.CreateLogger<Program>();
     //    return tmp
     //end";
     var source = @"
-    print 1, 2";
+    print ""Hello world""";
+    var gc = new GC();
     var c = new BasicCompiler(logger);
-    var chunk = new Chunk();
+    var chunk = new Chunk(gc);
     c.Compile(source, chunk);
 
-    var vm = new VM(logger);
+    var vm = new VM(gc, logger);
     var sb = new StringBuilder();
     chunk.DisassembleChunk(sb, "Test Chunk");
     Console.WriteLine(sb);

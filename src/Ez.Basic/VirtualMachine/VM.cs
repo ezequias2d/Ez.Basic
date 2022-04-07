@@ -1,5 +1,4 @@
 ﻿using Ez.Basic.VirtualMachine;
-using Ez.Basic.VirtualMachine.Objects;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
@@ -11,13 +10,16 @@ namespace Ez.Basic.VirtualMachine
     public class VM
     {
         private readonly ILogger m_logger;
-        private Chunk m_chunk;
         private readonly Stack<Value> m_stack;
+        private readonly GC m_gc;
+        private Chunk m_chunk;
         private int m_PC;
-        public VM(ILogger logger)
+
+        public VM(GC gc, ILogger logger)
         {
             m_logger = logger;
             m_stack = new Stack<Value>();
+            m_gc = gc;
         }
 
         public InterpretResult Interpret(Chunk chunk)
@@ -52,12 +54,9 @@ namespace Ez.Basic.VirtualMachine
                 switch(opcode)
                 {
                     #region constants
-                    case Opcode.NumericConstant:
-                        var constant = ReadNumericConstant();
+                    case Opcode.Constant:
+                        var constant = ReadConstant();
                         Push(constant);
-                        break;
-                    case Opcode.StringConstant:
-
                         break;
                     case Opcode.Null: Push(Value.MakeNull()); break;
                     case Opcode.True: Push(true); break;
@@ -139,13 +138,37 @@ namespace Ez.Basic.VirtualMachine
                         break;
                     #endregion
                     case Opcode.Concatenate:
-                        b = Pop();
-                        a = Pop();
-                        Push(new BasicString(a.ToString() + b.ToString()));
+                        {
+                            b = Pop();
+                            a = Pop();
+
+                            string str1, str2;
+                            if (a.IsObject)
+                                str1 = UnrefObject(ref a).ToString();
+                            else
+                                str1 = a.ToString();
+
+                            if (b.IsObject)
+                                str2 = UnrefObject(ref b).ToString();
+                            else
+                                str2 = b.ToString();
+
+                            Push(str1 + str2);
+                        }
                         break;
                     case Opcode.Print:
-                        a = Pop();
-                        Console.WriteLine(a.ToString());
+                        {
+                            a = Pop();
+
+                            string str;
+                            if (a.IsObject)
+                                str = UnrefObject(ref a).ToString();
+                            else
+                                str = a.ToString();
+
+                            
+                            Console.WriteLine(str);
+                        }
                         break;
                     case Opcode.Return:
                         //var value = Pop();
@@ -173,6 +196,12 @@ namespace Ez.Basic.VirtualMachine
             m_stack.Push(value);
         }
 
+        private void Push(object obj)
+        {
+            var reference = m_gc.AddObject(obj);
+            Push(reference);
+        }
+
         private Value Peek()
         {
             return m_stack.Peek();
@@ -183,15 +212,22 @@ namespace Ez.Basic.VirtualMachine
             return m_stack.Pop();
         }
 
+        private object UnrefObject(ref Value reference)
+        {
+            var obj = m_gc.GetObject(reference);
+            m_gc.RemoveObject(ref reference.m_as.Reference);
+            return obj;
+        }
+
         private Opcode ReadOpcode()
         {
             return m_chunk.Read<Opcode>(m_PC++);
         }
 
-        private double ReadNumericConstant()
+        private Value ReadConstant()
         {
             m_PC += m_chunk.ReadVariant(m_PC, out var constantIndex);
-            return m_chunk.GetNumericConstant(constantIndex);
+            return m_chunk.GetConstant(constantIndex);
         }
 
         private void RuntimeError(string message)

@@ -1,5 +1,4 @@
 ﻿using Ez.Basic.VirtualMachine.Attributes;
-using Ez.Basic.VirtualMachine.Objects;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -12,16 +11,19 @@ namespace Ez.Basic.VirtualMachine
         private ConstantPool m_constants;
         private List<IAttribute> m_attributes;
 
-        public Chunk(bool debug = true)
+        public Chunk(GC gc, bool debug = true)
         {
+            GC = gc;
             m_code = new DynamicArray();
-            m_constants = new ConstantPool();
+            m_constants = new ConstantPool(gc);
             m_attributes = new List<IAttribute>();
             
             LineNumberTable = new LineNumberTableAttribute();
             m_attributes.Add(LineNumberTable);
             Debug = debug;
         }
+
+        public GC GC { get; }
 
         public bool Debug { get; }
 
@@ -57,9 +59,9 @@ namespace Ez.Basic.VirtualMachine
             return m_code.ReadVarint(location, out value);
         }
 
-        public int AddNumericConstant(in Value value)
+        public int AddConstant(in Value value)
         {
-            return m_constants.AddNumericConstant(value);
+            return m_constants.AddConstant(value);
         }
 
         public int AddStringConstant(in string value)
@@ -67,14 +69,9 @@ namespace Ez.Basic.VirtualMachine
             return m_constants.AddStringConstant(value);
         }
 
-        public double GetNumericConstant(in int index)
+        public Value GetConstant(in int index)
         {
-            return m_constants.GetNumericConstant(index);
-        }
-
-        public BasicString GetConstantString(in int index)
-        {
-            return m_constants.GetStringConstant(index);
+            return m_constants.GetConstant(index);
         }
     }
 }

@@ -6,8 +6,7 @@ namespace Ez.Basic.VirtualMachine
 {
     public enum Opcode : byte
     {
-        NumericConstant,
-        StringConstant,
+        Constant,
         Null,
         True,
         False,

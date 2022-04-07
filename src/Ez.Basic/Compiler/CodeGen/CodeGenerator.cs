@@ -246,8 +246,8 @@ namespace Ez.Basic.Compiler.CodeGen
 
         private void EmitConstant(Node node, double value)
         {
-            Emit(node, Opcode.NumericConstant);
-            var index = m_chunk.AddNumericConstant(value);
+            Emit(node, Opcode.Constant);
+            var index = m_chunk.AddConstant(value);
             m_chunk.WriteVarint(index);
         }
 
@@ -270,10 +270,13 @@ namespace Ez.Basic.Compiler.CodeGen
                 switch(opcode)
                 {
                     case Opcode.Concatenate:
-                    case Opcode.StringConstant:
                         type |= SymbolType.String;
                         break;
-                    case Opcode.NumericConstant:
+                    case Opcode.Constant:
+                        type |= init.Type.LiteralType == LiteralType.String 
+                            ? SymbolType.String 
+                            : SymbolType.Numeric;
+                        break;
                     case Opcode.Add:
                     case Opcode.Subtract:
                     case Opcode.Multiply:
@@ -288,7 +291,7 @@ namespace Ez.Basic.Compiler.CodeGen
 
         private void EmitConstant(Node node, string value)
         {
-            Emit(node, Opcode.StringConstant);
+            Emit(node, Opcode.Constant);
             var index = m_chunk.AddStringConstant(value);
             m_chunk.WriteVarint(index);
         }

@@ -38,10 +38,8 @@ namespace Ez.Basic.VirtualMachine
             switch (instruction)
             {
                 #region constants
-                case Opcode.NumericConstant:
-                    return chunk.ConstantNumericInstruction(sb, "OP_NUMERIC_CONSTANT", offset);
-                case Opcode.StringConstant:
-                    return chunk.ConstantStringInstruction(sb, "OP_STRING_CONSTANT", offset);
+                case Opcode.Constant:
+                    return chunk.ConstantInstruction(sb, "OP_CONSTANT", offset);
                 case Opcode.Null:
                     return chunk.SimpleInstruction(sb, "OP_NULL", offset);
                 case Opcode.True:
@@ -98,17 +96,18 @@ namespace Ez.Basic.VirtualMachine
             return 1;
         }
 
-        private static int ConstantNumericInstruction(this Chunk chunk, StringBuilder sb, string name, int offset)
+        private static int ConstantInstruction(this Chunk chunk, StringBuilder sb, string name, int offset)
         {
             var count = chunk.ReadVariant(offset + 1, out int constant);
-            sb.AppendLine($"{name}\t\t{constant} '{chunk.GetNumericConstant(constant)}'");
-            return count + 1;
-        }
+            var value = chunk.GetConstant(constant);
 
-        private static int ConstantStringInstruction(this Chunk chunk, StringBuilder sb, string name, int offset)
-        {
-            var count = chunk.ReadVariant(offset, out int constant);
-            sb.AppendLine($"{name}\t\t{constant} '{chunk.GetConstantString(constant)}'");
+            string str;
+            if (value.IsObject)
+                str = chunk.GC.GetObject(value.ObjectReference).ToString();
+            else
+                str = value.ToString();
+
+            sb.AppendLine($"{name}\t\t{constant} '{str}'");
             return count + 1;
         }
     }

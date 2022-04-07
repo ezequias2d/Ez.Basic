@@ -1,49 +1,45 @@
-﻿using Ez.Basic.VirtualMachine.Objects;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace Ez.Basic.VirtualMachine
 {
     internal class ConstantPool
     {
-        private List<double> m_numeric_constants;
-        private List<BasicString> m_string_constants;
+        private readonly GC m_gc;
+        private List<Value> m_values;
 
-        public ConstantPool()
+        public ConstantPool(GC gc)
         {
-            m_numeric_constants = new List<double>();
-            m_string_constants = new List<BasicString>();
+            m_gc = gc;
+            m_values = new List<Value>();
+            
         }
 
-        public int AddNumericConstant(in double value)
+        public int AddConstant(in Value value)
         {
-            var index = m_numeric_constants.IndexOf(value);
+            var index = m_values.IndexOf(value);
             if(index == -1)
             {
-                m_numeric_constants.Add(value);
-                index = m_numeric_constants.Count - 1;
+                m_values.Add(value);
+                index = m_values.Count - 1;
             }
             return index;
         }
 
         public int AddStringConstant(string value)
         {
-            var index = m_string_constants.FindIndex(s => s.Value.Equals(value));
+            var index = m_values.FindIndex(c => c.IsObject && m_gc.GetObject(c.ObjectReference).Equals(value));
             if(index == -1)
             {
-                m_string_constants.Add(new BasicString(value));
-                index = m_string_constants.Count - 1;
+                var reference = m_gc.AddObject(value);
+                m_values.Add(reference);
+                index = m_values.Count - 1;
             }
             return index;
         }
 
-        public double GetNumericConstant(in int index)
+        public Value GetConstant(in int index)
         {
-            return m_numeric_constants[index];
-        }
-
-        public BasicString GetStringConstant(in int index)
-        {
-            return m_string_constants[index];
+            return m_values[index];
         }
     }
 }
