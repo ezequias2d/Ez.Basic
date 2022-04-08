@@ -1,8 +1,8 @@
 ﻿using Ez.Basic.Compiler.Lexer;
-using Ez.Basic.Compiler.Parser;
 using Ez.Basic.VirtualMachine;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using static Ez.Basic.Compiler.Parser.Ast;
@@ -13,33 +13,31 @@ namespace Ez.Basic.Compiler.CodeGen
     {
         private readonly Chunk m_chunk;
         private readonly ILogger m_logger;
-        private readonly Stack<Node> m_stack;
+        private readonly Dictionary<string, int> m_locals;
+        private SymbolTable m_scope;
         private bool m_hadError;
-        private readonly Stack<SymbolTable> m_symbolTables;
+        private int m_sp;
 
-        public CodeGenerator(ILogger logger, Chunk targetChunk, Node block)
+        public CodeGenerator(ILogger logger, Chunk targetChunk)
         {
             m_logger = logger;
             m_chunk = targetChunk;
             m_hadError = false;
-            m_stack = new Stack<Node>();
-            m_symbolTables = new Stack<SymbolTable>();
-
-            foreach(var stmt in block.Data)
-                m_stack.Push(stmt);
+            m_locals = new Dictionary<string, int>();
+            m_scope = null;
+            m_sp = 0;
+            BeginScope();
         }
 
-        public bool CodeGen()
+
+        public bool CodeGen(Node block)
         {
             m_hadError = false;
-
-            while(m_stack.Has)
+            
+            foreach(var stmt in block.Data)
             {
-                var stmt = m_stack.Pop();
-
                 Statement(stmt);
             }
-
 
             return !m_hadError;
         }
@@ -68,12 +66,14 @@ namespace Ez.Basic.Compiler.CodeGen
         private void PrintStatement(Node node)
         {
             Expression(node.ChildLeft);
+            Pop();
             Emit(node, Opcode.Print);
         }
 
         private void ExpressionStatement(Node node)
         {
             Expression(node.ChildLeft);
+            Pop();
             Emit(node, Opcode.Pop);
         }
 
@@ -85,13 +85,16 @@ namespace Ez.Basic.Compiler.CodeGen
         private void Expression(Node node)
         {
             Debug.Assert(node.Type.Class == NodeClass.Expr);
-
+            
             switch(node.Type.Kind)
             {
                 case NodeKind.Literal: Literal(node); break;
                 case NodeKind.Unary: Unary(node); break;
                 case NodeKind.Binary: Binary(node); break;
-                    
+                case NodeKind.Variable: Variable(node); break;
+                case NodeKind.Assign: Assign(node); break;
+                default:
+                    throw new NotImplementedException();
             }
         }
 
@@ -107,11 +110,12 @@ namespace Ez.Basic.Compiler.CodeGen
                         default: throw new CodeGenException();
                     }
                     break;
-                case LiteralType.Null: Emit(node, Opcode.Null); break;
+                case LiteralType.Null: EmitNull(node); break;
                 case LiteralType.String: String(node); break;
                 case LiteralType.Number: Number(node); break;
                 default: throw new CodeGenException();
             }
+            Push();
         }
 
         private void Number(Node node)
@@ -134,7 +138,9 @@ namespace Ez.Basic.Compiler.CodeGen
             Expression(node.ChildRight);
             
             var op = node.Token.Type;
-            switch(op)
+            Pop();
+            Push();
+            switch (op)
             {
                 case TokenType.Minus: Emit(node, Opcode.Negate); break;
                 case TokenType.Not: Emit(node, Opcode.Not); break;
@@ -152,6 +158,8 @@ namespace Ez.Basic.Compiler.CodeGen
 
             var op = node.Token.Type;
 
+            Pop(2);
+            Push();
             switch(op)
             {
                 case TokenType.BangEqual: 
@@ -192,6 +200,39 @@ namespace Ez.Basic.Compiler.CodeGen
             }
         }
 
+        private void Variable(Node node)
+        {
+            EnsureVariable(node);
+
+            if (!m_scope.Lookup(node.Token.Lexeme.ToString(), out var depth))
+                ErrorAt(node, "The variable must be declared.");
+
+            var delta = m_sp - depth;
+            Emit(node, Opcode.GetVariable);
+            m_chunk.WriteVarint(delta);
+
+            Push();
+        }
+
+        private void Assign(Node node)
+        {
+            EnsureAssign(node);
+            EnsureVariable(node.ChildLeft);
+
+            Expression(node.ChildRight);
+            Pop();
+            var lexeme = node.ChildLeft.Token.Lexeme.ToString();
+
+            if (!m_scope.Lookup(lexeme, out var depth))
+                ErrorAt(node, "The variable must be declared.");
+
+            var delta = m_sp - depth;
+            Emit(node, Opcode.SetVariable);
+            m_chunk.WriteVarint(delta);
+
+            Push();
+        }
+
         [Conditional("DEBUG")]
         private void EnsureStmt(Node node, NodeKind kind)
         {
@@ -224,6 +265,17 @@ namespace Ez.Basic.Compiler.CodeGen
             EnsureExpr(node, NodeKind.Binary);
         }
 
+        [Conditional("DEBUG")]
+        private void EnsureVariable(Node node)
+        {
+            EnsureExpr(node, NodeKind.Variable);
+        }
+
+        [Conditional("DEBUG")]
+        private void EnsureAssign(Node node)
+        {
+            EnsureExpr(node, NodeKind.Assign);
+        }
 
         [Conditional("DEBUG")]
         private void EnsureLiteral(Node node, LiteralType type)
@@ -251,6 +303,11 @@ namespace Ez.Basic.Compiler.CodeGen
             m_chunk.WriteVarint(index);
         }
 
+        private void EmitNull(Node node)
+        {
+            Emit(node, Opcode.Null);
+        }
+
         private T LastEmitted<T>() where T : unmanaged
         {
             return m_chunk.Peek<T>();
@@ -259,22 +316,22 @@ namespace Ez.Basic.Compiler.CodeGen
         private void DeclareVariable(Node node)
         {
             var name = node.Token.Lexeme.ToString();
-            var current = m_symbolTables.Peek();
 
             SymbolType type = SymbolType.Variable;
-            if(node.ChildLeft != null)
+            if (node.ChildLeft != null)
             {
                 var init = node.ChildLeft;
                 Expression(init);
+
                 var opcode = LastEmitted<Opcode>();
-                switch(opcode)
+                switch (opcode)
                 {
                     case Opcode.Concatenate:
                         type |= SymbolType.String;
                         break;
                     case Opcode.Constant:
-                        type |= init.Type.LiteralType == LiteralType.String 
-                            ? SymbolType.String 
+                        type |= init.Type.LiteralType == LiteralType.String
+                            ? SymbolType.String
                             : SymbolType.Numeric;
                         break;
                     case Opcode.Add:
@@ -286,7 +343,37 @@ namespace Ez.Basic.Compiler.CodeGen
                         break;
                 }
             }
-            current.Insert(name, SymbolType.Variable);
+            else
+                EmitNull(node);
+
+            AddLocal(name, type);
+        }
+
+        private void DeclareBlock(Node node)
+        {
+            foreach(var stmt in node.Data)
+                Statement(node);
+        }
+
+        private void AddLocal(string name, SymbolType type)
+        {
+            m_scope.Insert(name, type, m_sp);
+        }
+
+        private void BeginScope()
+        {
+            m_scope = new SymbolTable(m_scope, m_sp);
+        }
+
+        private void EndScope(Node node)
+        {
+            var delta = m_sp - m_scope.Depth;
+            
+            Emit(node, Opcode.PopN);
+            m_chunk.WriteVarint(delta);
+
+            m_sp = m_scope.Depth;
+            m_scope = m_scope.Parent;
         }
 
         private void EmitConstant(Node node, string value)
@@ -329,6 +416,19 @@ namespace Ez.Basic.Compiler.CodeGen
             m_hadError = true;
 
             return new CodeGenException();
+        }
+
+        private int Push(int count = 1)
+        {
+            var sp = m_sp;
+            m_sp += count;
+            return sp;
+        }
+
+        private int Pop(int count = 1)
+        {
+            m_sp -= count;
+            return m_sp;
         }
     }
 }

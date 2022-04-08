@@ -62,6 +62,7 @@ namespace Ez.Basic.VirtualMachine
                     case Opcode.True: Push(true); break;
                     case Opcode.False: Push(false); break;
                     case Opcode.Pop: Pop(); break;
+                    case Opcode.PopN: PopN(); break;
                     #endregion
                     #region logical
                     case Opcode.Equal:
@@ -170,6 +171,13 @@ namespace Ez.Basic.VirtualMachine
                             Console.WriteLine(str);
                         }
                         break;
+                    case Opcode.GetVariable:
+                        Push(GetVariable());
+                        break;
+                    case Opcode.SetVariable:
+                        a = Pop();
+                        SetVariable(a);
+                        break;
                     case Opcode.Return:
                         //var value = Pop();
                         //Console.WriteLine($"Return value is {value}");
@@ -212,6 +220,12 @@ namespace Ez.Basic.VirtualMachine
             return m_stack.Pop();
         }
 
+        private void PopN()
+        {
+            m_PC += m_chunk.ReadVariant(m_PC, out var n);
+            m_stack.Pop(n);
+        }
+
         private object UnrefObject(ref Value reference)
         {
             var obj = m_gc.GetObject(reference);
@@ -228,6 +242,19 @@ namespace Ez.Basic.VirtualMachine
         {
             m_PC += m_chunk.ReadVariant(m_PC, out var constantIndex);
             return m_chunk.GetConstant(constantIndex);
+        }
+
+        private Value GetVariable()
+        {
+            m_PC += m_chunk.ReadVariant(m_PC, out var offset);
+            return m_stack.Peek(offset);
+        }
+
+        private void SetVariable(Value value)
+        {
+            m_PC += m_chunk.ReadVariant(m_PC, out var offset);
+            m_stack.Peek(offset) = value;
+            Push(value);
         }
 
         private void RuntimeError(string message)

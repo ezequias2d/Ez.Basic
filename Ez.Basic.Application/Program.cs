@@ -88,7 +88,10 @@ ILogger<Program> logger = loggerFactory.CreateLogger<Program>();
     //    return tmp
     //end";
     var source = @"
-    print ""Hello world""";
+    let a = 2
+    let b = 3
+    a = a * a
+    print a + b";
     var gc = new GC();
     var c = new BasicCompiler(logger);
     var chunk = new Chunk(gc);

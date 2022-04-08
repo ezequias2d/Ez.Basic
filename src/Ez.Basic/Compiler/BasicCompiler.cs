@@ -36,8 +36,8 @@ namespace Ez.Basic
             if (m_parser.HadError)
                 return false;
 
-            m_codeGen = new CodeGenerator(m_logger, m_compilingChunk, block);
-            if (!m_codeGen.CodeGen())
+            m_codeGen = new CodeGenerator(m_logger, m_compilingChunk);
+            if (!m_codeGen.CodeGen(block))
                 return false;
 
             Console.WriteLine(block.ToString());

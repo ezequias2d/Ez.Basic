@@ -6,11 +6,14 @@ namespace Ez.Basic.VirtualMachine
 {
     public enum Opcode : byte
     {
+        GetVariable,
+        SetVariable,
         Constant,
         Null,
         True,
         False,
         Pop,
+        PopN,
         Equal,
         NotEqual,
         Greater,

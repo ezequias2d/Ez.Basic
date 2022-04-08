@@ -20,6 +20,7 @@ namespace Ez.Basic
         }
 
         public bool Has => m_count > 0;
+        public int Count => m_count;
 
         public void Push(T value)
         {
@@ -47,9 +48,14 @@ namespace Ez.Basic
             return result;
         }
 
-        public T Peek(int n = 0)
+        public void Pop(int n)
         {
-            return m_array[m_count - 1 - n];
+            m_count -= n;
+        }
+
+        public ref T Peek(int n = 0)
+        {
+            return ref m_array[m_count - 1 - n];
         }
 
         public void Reset()

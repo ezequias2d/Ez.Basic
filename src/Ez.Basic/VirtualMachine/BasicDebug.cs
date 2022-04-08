@@ -48,6 +48,8 @@ namespace Ez.Basic.VirtualMachine
                     return chunk.SimpleInstruction(sb, "OP_FALSE", offset);
                 case Opcode.Pop:
                     return chunk.SimpleInstruction(sb, "OP_POP", offset);
+                case Opcode.PopN:
+                    return chunk.VarintArgumentInstruction(sb, "OP_POP_N", offset);
                 #endregion
                 #region logical
                 case Opcode.Equal:
@@ -81,6 +83,10 @@ namespace Ez.Basic.VirtualMachine
                     return chunk.SimpleInstruction(sb, "OP_CONCATENATE", offset);
                 case Opcode.Print:
                     return chunk.SimpleInstruction(sb, "OP_PRINT", offset);
+                case Opcode.GetVariable:
+                    return chunk.VarintArgumentInstruction(sb, "OP_GET_VARIABLE", offset);
+                case Opcode.SetVariable:
+                    return chunk.VarintArgumentInstruction(sb, "OP_SET_VARIABLE", offset);
                 case Opcode.Return:
                     return chunk.SimpleInstruction(sb, "OP_RETURN", offset);
                 default:
@@ -108,6 +114,14 @@ namespace Ez.Basic.VirtualMachine
                 str = value.ToString();
 
             sb.AppendLine($"{name}\t\t{constant} '{str}'");
+            return count + 1;
+        }
+
+        private static int VarintArgumentInstruction(this Chunk chunk, StringBuilder sb, string name, int offset)
+        {
+            var count = chunk.ReadVariant(offset + 1, out int n);
+
+            sb.AppendLine($"{name}\t\t{n}");
             return count + 1;
         }
     }
