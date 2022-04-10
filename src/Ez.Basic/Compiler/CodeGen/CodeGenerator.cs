@@ -58,6 +58,9 @@ namespace Ez.Basic.Compiler.CodeGen
                 case NodeKind.Let:
                     LetStatement(node);
                     break;
+                case NodeKind.If:
+                    IfStatement(node);
+                    break;
                 default:
                     throw new CodeGenException();
             }
@@ -80,6 +83,18 @@ namespace Ez.Basic.Compiler.CodeGen
         private void LetStatement(Node node)
         {
             DeclareVariable(node);
+        }
+
+        private void IfStatement(Node node)
+        {
+            Expression(node.Condition);
+
+            var branch = Emit(node, Opcode.BranchFalse);
+            Pop();
+            DeclareBlock(node.ChildLeft);
+
+            var delta = m_chunk.Count - branch;
+            m_chunk.InsertVarint(branch + 1, delta);
         }
 
         private void Expression(Node node)
@@ -291,9 +306,9 @@ namespace Ez.Basic.Compiler.CodeGen
                 node.Type.LiteralType == literal);
         }
 
-        private void Emit<T>(Node node, T value) where T : unmanaged
+        private int Emit<T>(Node node, in T value) where T : unmanaged
         {
-            m_chunk.Write(value, node.Token.Line);
+            return m_chunk.Write(value, node.Token.Line);
         }
 
         private void EmitConstant(Node node, double value)
@@ -351,8 +366,10 @@ namespace Ez.Basic.Compiler.CodeGen
 
         private void DeclareBlock(Node node)
         {
+            BeginScope();
             foreach(var stmt in node.Data)
-                Statement(node);
+                Statement(stmt);
+            EndScope(node);
         }
 
         private void AddLocal(string name, SymbolType type)
@@ -369,8 +386,11 @@ namespace Ez.Basic.Compiler.CodeGen
         {
             var delta = m_sp - m_scope.Depth;
             
-            Emit(node, Opcode.PopN);
-            m_chunk.WriteVarint(delta);
+            if(delta > 0)
+            {
+                Emit(node, Opcode.PopN);
+                m_chunk.WriteVarint(delta);
+            }
 
             m_sp = m_scope.Depth;
             m_scope = m_scope.Parent;

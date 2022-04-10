@@ -28,6 +28,8 @@ namespace Ez.Basic.VirtualMachine
 
         public int Count => m_count;
 
+        public Span<byte> AsSpan => new Span<byte>(m_array, 0, m_count);
+
         public int Append<T>(in T value) where T : unmanaged
         {
             var index = m_count;
@@ -44,6 +46,42 @@ namespace Ez.Basic.VirtualMachine
             return index;
         }
 
+        public void Update<T>(int index, in T value) where T : unmanaged
+        {
+            int size = SizeOf<T>();
+
+            if (!(index >= 0 && index < m_count && index + size <= m_count))
+                throw new IndexOutOfRangeException();
+
+            Span<T> tmp = stackalloc T[1];
+            tmp[0] = value;
+            Copy<T>(m_array.AsSpan().Slice(index), tmp);
+        }
+
+        public void Insert<T>(int index, in T value) where T : unmanaged
+        {
+            var size = SizeOf<T>();
+            EnsureCapacity(m_count + size);
+
+            if (index > m_count)
+                throw new NotImplementedException();
+
+            if (index == m_count)
+            {
+                Append(value);
+                return;
+            }
+
+            var dst = m_array.AsSpan().Slice(index + size);
+            var src = m_array.AsSpan().Slice(index, m_count - index);
+            Span<byte> tmp = stackalloc byte[src.Length];
+            Copy<byte>(tmp, src);
+            // moves to right
+            Copy<byte>(dst, tmp);
+            Update(index, value);
+            m_count += size;
+        }
+
         public T Get<T>(int location) where T : unmanaged
         {
             Copy(out T tmp, m_array.AsSpan().Slice(location, SizeOf<T>()));
@@ -55,49 +93,6 @@ namespace Ez.Basic.VirtualMachine
             var size = SizeOf<T>();
             var index = m_count - size;
             return Get<T>(index);
-        }
-
-        public int ReadVarint(int location, out int value)
-        {
-            int result = 0;
-
-            bool moreBytes;
-            int bits = 0;
-            int count = 0;
-            do
-            {
-                byte readed = m_array[location];
-                result |= readed << bits;
-                moreBytes = (readed & 0x80) != 0;
-                bits += 7;
-                count++;
-            } while (moreBytes);
-
-            value = result;
-            return count;
-        }
-
-        public int WriteVarint(int value)
-        {
-            Span<byte> tmp = stackalloc byte[5];
-            int i = 0;
-            do
-            {
-                byte coded = (byte)(value & 0x7F);
-                value >>= 7;
-                if (value > 0)
-                    coded |= 0x80;
-
-                tmp[i++] = coded;
-            } while (value != 0);
-            tmp = tmp.Slice(0, i);
-            var index = m_count;
-
-            EnsureCapacity(index + tmp.Length);
-
-            Copy<byte>(m_array.AsSpan().Slice(m_count), tmp);
-            m_count += tmp.Length;
-            return index;
         }
 
         private void EnsureCapacity(int capacity)

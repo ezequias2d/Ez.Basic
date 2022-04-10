@@ -13,11 +13,10 @@ using ILoggerFactory loggerFactory =
                 {
                     options.IncludeScopes = true;
                     options.SingleLine = true;
-                    options.TimestampFormat = "hh:mm:ss ";
-                }));
+                    options.TimestampFormat = "hh:mm:ss ";                    
+                }).SetMinimumLevel(LogLevel.Debug));
 
 ILogger<Program> logger = loggerFactory.CreateLogger<Program>();
-
 
 //{
 //    var vm = new VM(logger);
@@ -87,10 +86,16 @@ ILogger<Program> logger = loggerFactory.CreateLogger<Program>();
     //    next
     //    return tmp
     //end";
-    var source = @"
-    let a = 2
+    var source = 
+  @"let a = 2
     let b = 3
-    a = a * a
+    if a >= 2
+        a = a * a
+        if a > 3
+            b = a
+            b = 1
+        next
+    next
     print a + b";
     var gc = new GC();
     var c = new BasicCompiler(logger);
@@ -99,8 +104,7 @@ ILogger<Program> logger = loggerFactory.CreateLogger<Program>();
 
     var vm = new VM(gc, logger);
     var sb = new StringBuilder();
-    chunk.DisassembleChunk(sb, "Test Chunk");
-    Console.WriteLine(sb);
+    chunk.DisassembleChunk(logger, "Test Chunk");
 
     Console.WriteLine("Start interpret");
     vm.Interpret(chunk);

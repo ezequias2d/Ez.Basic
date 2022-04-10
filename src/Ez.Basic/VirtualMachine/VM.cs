@@ -178,6 +178,13 @@ namespace Ez.Basic.VirtualMachine
                         a = Pop();
                         SetVariable(a);
                         break;
+                    case Opcode.BranchFalse:
+                        a = Pop();
+                        m_PC += m_chunk.ReadVariant(m_PC, out var offset);
+
+                        if (!a.Boolean)
+                            m_PC += offset;
+                        break;
                     case Opcode.Return:
                         //var value = Pop();
                         //Console.WriteLine($"Return value is {value}");

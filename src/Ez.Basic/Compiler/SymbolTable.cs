@@ -46,7 +46,10 @@ namespace Ez.Basic.Compiler
         {
             variableDepth = 0;
             if (m_table == null)
-                return false;
+                if (Parent != null)
+                    return Parent.Lookup(symbolName, out variableDepth);
+                else 
+                    return false;
 
             try
             {
@@ -56,6 +59,8 @@ namespace Ez.Basic.Compiler
             }
             catch (InvalidOperationException)
             {
+                if (Parent != null)
+                    return Parent.Lookup(symbolName, out variableDepth);
                 return false;
             }
         }

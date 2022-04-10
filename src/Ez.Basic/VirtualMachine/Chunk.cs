@@ -51,12 +51,36 @@ namespace Ez.Basic.VirtualMachine
 
         public int WriteVarint(int value)
         {
-            return m_code.WriteVarint(value);
+            Span<byte> tmp = stackalloc byte[5];
+            tmp = tmp.Slice(0, Varint.Encode(value, tmp));
+
+            var i = 0;
+            do
+            {
+                m_code.Append(tmp[i]);
+                i++;
+            } while (i < tmp.Length);
+
+            return m_code.Count - tmp.Length;
         }
 
         public int ReadVariant(int location, out int value)
         {
-            return m_code.ReadVarint(location, out value);
+            var src = m_code.AsSpan.Slice(location);
+            return Varint.Decode(src, out value);
+        }
+
+        public void InsertVarint(int index, int value)
+        {
+            Span<byte> tmp = stackalloc byte[5];
+            tmp = tmp.Slice(0, Varint.Encode(value, tmp));
+
+            var i = 0;
+            do
+            {
+                m_code.Insert(index++,tmp[i]);
+                i++;
+            } while (i < tmp.Length);
         }
 
         public int AddConstant(in Value value)

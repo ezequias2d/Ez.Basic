@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,15 +9,15 @@ namespace Ez.Basic.VirtualMachine
 {
     public static class BasicDebug
     {
-        public static void DisassembleChunk(this Chunk chunk, StringBuilder sb, string name)
+        public static void DisassembleChunk(this Chunk chunk, ILogger logger, string name)
         {
-            sb.Append("== ");
-            sb.Append(name);
-            sb.Append(" ==\n");
-
+            logger.LogDebug($"== {name} ==");
+            var sb = new StringBuilder();
             for (var offset = 0; offset < chunk.Count;)
             {
                 offset += chunk.DisassembleInstruction(sb, offset);
+                logger.LogDebug(sb.ToString());
+                sb.Clear();
             }
         }
 
@@ -87,6 +88,8 @@ namespace Ez.Basic.VirtualMachine
                     return chunk.VarintArgumentInstruction(sb, "OP_GET_VARIABLE", offset);
                 case Opcode.SetVariable:
                     return chunk.VarintArgumentInstruction(sb, "OP_SET_VARIABLE", offset);
+                case Opcode.BranchFalse:
+                    return chunk.VarintArgumentInstruction(sb, "OP_BRANCH_FALSE", offset);
                 case Opcode.Return:
                     return chunk.SimpleInstruction(sb, "OP_RETURN", offset);
                 default:
@@ -120,7 +123,6 @@ namespace Ez.Basic.VirtualMachine
         private static int VarintArgumentInstruction(this Chunk chunk, StringBuilder sb, string name, int offset)
         {
             var count = chunk.ReadVariant(offset + 1, out int n);
-
             sb.AppendLine($"{name}\t\t{n}");
             return count + 1;
         }
