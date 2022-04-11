@@ -187,7 +187,12 @@ namespace Ez.Basic.Compiler.Parser
             Node elseBranch = null;
 
             if(thenBranch.EndToken.Type == TokenType.Else)
-                elseBranch = Block(TokenType.Next);
+            {
+                if(Match(TokenType.If))
+                    elseBranch = IfStatement();
+                else
+                    elseBranch = Block(TokenType.Next);
+            }
 
             return MakeIf(token, condition, thenBranch, elseBranch);
         }

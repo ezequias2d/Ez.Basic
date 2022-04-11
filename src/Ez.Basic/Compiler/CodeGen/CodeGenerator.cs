@@ -61,6 +61,9 @@ namespace Ez.Basic.Compiler.CodeGen
                 case NodeKind.If:
                     IfStatement(node);
                     break;
+                case NodeKind.Block:
+                    DeclareBlock(node);
+                    break;
                 default:
                     throw new CodeGenException();
             }
@@ -87,14 +90,31 @@ namespace Ez.Basic.Compiler.CodeGen
 
         private void IfStatement(Node node)
         {
+            bool hasElse = node.ChildRight is not null;
             Expression(node.Condition);
 
             var branch = Emit(node, Opcode.BranchFalse);
             Pop();
-            DeclareBlock(node.ChildLeft);
+            Statement(node.ChildLeft);
 
-            var delta = m_chunk.Count - branch;
-            m_chunk.InsertVarint(branch + 1, delta);
+            int elseJump = m_chunk.Count;
+            if(hasElse)
+                elseJump = Emit(node, Opcode.BranchAlways);
+
+            if(hasElse)
+            {
+                var elseBranch = m_chunk.Count;
+                Statement(node.ChildRight);
+
+                var delta = m_chunk.Count - elseJump - 1;
+                m_chunk.InsertVarint(elseJump + 1, delta);
+                elseJump = elseBranch;
+            }
+
+            {
+                var delta = elseJump - branch;
+                m_chunk.InsertVarint(branch + 1, delta);
+            }
         }
 
         private void Expression(Node node)

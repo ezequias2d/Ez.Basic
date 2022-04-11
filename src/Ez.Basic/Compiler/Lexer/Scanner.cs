@@ -212,6 +212,7 @@ namespace Ez.Basic.Compiler.Lexer
                         ("until" , TokenType.Until),
                         ("goto"  , TokenType.Goto),
                         ("if"    , TokenType.If),
+                        ("else"  , TokenType.Else),
                         ("next"  , TokenType.Next),
                         ("return", TokenType.Return),
                         ("end"   , TokenType.End),

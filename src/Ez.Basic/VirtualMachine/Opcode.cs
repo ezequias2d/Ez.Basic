@@ -29,6 +29,7 @@ namespace Ez.Basic.VirtualMachine
         Negate,
         Print,
         BranchFalse,
+        BranchAlways,
         Return,
     }
 }
