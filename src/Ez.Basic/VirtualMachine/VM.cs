@@ -131,6 +131,11 @@ namespace Ez.Basic.VirtualMachine
                             return InterpretResult.RuntimeError;
                         Push(a / b);
                         break;
+                    case Opcode.Mod:
+                        if (!PopOperators(ValueType.Number, out a, out b))
+                            return InterpretResult.RuntimeError;
+                        Push(a % b);
+                        break;
                     case Opcode.Negate:
                         if(Peek().Type != ValueType.Number)
                         {

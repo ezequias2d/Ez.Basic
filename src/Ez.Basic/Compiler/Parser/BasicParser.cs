@@ -422,7 +422,7 @@ namespace Ez.Basic.Compiler.Parser
         {
             var expr = Unary();
 
-            while(Match(TokenType.Slash, TokenType.Star))
+            while(Match(TokenType.Slash, TokenType.Star, TokenType.Mod))
             {
                 var op = Previous;
                 var right = Unary();
@@ -520,6 +520,16 @@ namespace Ez.Basic.Compiler.Parser
         private bool Match(TokenType type1, TokenType type2, TokenType type3, TokenType type4)
         {
             if (Check(type1) || Check(type2) || Check(type3) || Check(type4))
+            {
+                Advance();
+                return true;
+            }
+            return false;
+        }
+
+        private bool Match(TokenType type1, TokenType type2, TokenType type3)
+        {
+            if (Check(type1) || Check(type2) || Check(type3))
             {
                 Advance();
                 return true;

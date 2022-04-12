@@ -24,6 +24,7 @@ namespace Ez.Basic.VirtualMachine
         Subtract,
         Multiply,
         Divide,
+        Mod,
         Concatenate,
         Not,
         Negate,

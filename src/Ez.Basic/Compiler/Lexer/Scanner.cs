@@ -47,6 +47,7 @@ namespace Ez.Basic.Compiler.Lexer
                 case '+': return MakeToken(TokenType.Plus);
                 case '/': return MakeToken(TokenType.Slash);
                 case '*': return MakeToken(TokenType.Star);
+                case '%': return MakeToken(TokenType.Mod);
                 case '!': return MakeToken(Match('=') 
                                             ? TokenType.BangEqual 
                                             : TokenType.Bang);

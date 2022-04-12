@@ -197,6 +197,9 @@ namespace Ez.Basic.VirtualMachine
         public static Value operator /(Value left, Value right) =>
             left.Number / right.Number;
 
+        public static Value operator %(Value left, Value right) =>
+            left.Number % right.Number;
+
         public static bool operator ==(Value left, Value right)
         {
             if (left.Type != right.Type)

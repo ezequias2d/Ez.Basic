@@ -84,6 +84,8 @@ namespace Ez.Basic.VirtualMachine
                     return chunk.SimpleInstruction(sb, "OP_MUL", offset);
                 case Opcode.Divide:
                     return chunk.SimpleInstruction(sb, "OP_DIV", offset);
+                case Opcode.Mod:
+                    return chunk.SimpleInstruction(sb, "OP_MOD", offset);
                 case Opcode.Negate:
                     return chunk.SimpleInstruction(sb, "OP_NEGATE", offset);
                 #endregion

@@ -168,7 +168,7 @@ namespace Ez.Basic.Compiler.CodeGen
         private void String(Node node)
         {
             EnsureString(node);
-            var value = node.Token.Lexeme.ToString();
+            var value = node.Token.Lexeme.Slice(1, node.Token.Lexeme.Length - 2).ToString();
             EmitConstant(node, value);
         }
 
@@ -231,6 +231,9 @@ namespace Ez.Basic.Compiler.CodeGen
                     break;
                 case TokenType.Slash:
                     Emit(node, Opcode.Divide);
+                    break;
+                case TokenType.Mod:
+                    Emit(node, Opcode.Mod);
                     break;
                 case TokenType.Comma:
                     Emit(node, Opcode.Concatenate);

@@ -69,6 +69,7 @@ namespace Ez.Basic.Compiler.Lexer
         Plus,           // +
         Slash,          // /
         Star,           // *
+        Mod,            // %
 
         Bang,           // !
         BangEqual,      // !=
