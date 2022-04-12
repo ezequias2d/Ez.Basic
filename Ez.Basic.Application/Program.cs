@@ -89,15 +89,12 @@ ILogger<Program> logger = loggerFactory.CreateLogger<Program>();
     var source = 
   @"let a = 1
     let b = 0
-    let i = 2
-    while i < 10
+    for i = 3 to 10 step 1
         let c = a + b
         b = a
         a = c
-        i = i + 1
         print i, "" "", a 
-    next
-    print (true and false) or true";
+    next";
     var gc = new GC();
     var c = new BasicCompiler(logger);
     var chunk = new Chunk(gc, false);
