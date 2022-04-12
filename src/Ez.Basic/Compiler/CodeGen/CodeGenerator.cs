@@ -1,10 +1,11 @@
-﻿using Ez.Basic.Compiler.Lexer;
+using Ez.Basic.Compiler.Lexer;
 using Ez.Basic.VirtualMachine;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using System.Globalization;
 using static Ez.Basic.Compiler.Parser.Ast;
 
 namespace Ez.Basic.Compiler.CodeGen
@@ -161,7 +162,7 @@ namespace Ez.Basic.Compiler.CodeGen
         private void Number(Node node)
         {
             EnsureNumber(node);
-            var value = double.Parse(node.Token.Lexeme.ToString());
+            var value = double.Parse(node.Token.Lexeme.ToString(), CultureInfo.InvariantCulture);
             EmitConstant(node, value);
         }
 
