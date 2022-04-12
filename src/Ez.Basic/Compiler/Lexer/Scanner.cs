@@ -208,6 +208,8 @@ namespace Ez.Basic.Compiler.Lexer
                         ("let"   , TokenType.Let),
                         ("const" , TokenType.Const),
                         ("for"   , TokenType.For),
+                        ("to"    , TokenType.To),
+                        ("step"  , TokenType.Step),
                         ("do"    , TokenType.Do),
                         ("while" , TokenType.While),
                         ("until" , TokenType.Until),
