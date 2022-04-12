@@ -39,6 +39,7 @@ namespace Ez.Basic.Compiler.Parser
             Block,
             If,
             While,
+            Until,
             For,
             Continue,
             Exit,

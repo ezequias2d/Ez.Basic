@@ -65,6 +65,9 @@ namespace Ez.Basic.Compiler.CodeGen
                 case NodeKind.Block:
                     DeclareBlock(node);
                     break;
+                case NodeKind.Until:
+                    UntilStatement(node);
+                    break;
                 case NodeKind.While:
                     WhileStatement(node);
                     break;
@@ -326,12 +329,25 @@ namespace Ez.Basic.Compiler.CodeGen
             Push();
         }
 
+        private void UntilStatement(Node node)
+        {
+            ConditionalLoopStatement(node, Opcode.BranchTrue);
+        }
+
         private void WhileStatement(Node node)
         {
+            ConditionalLoopStatement(node, Opcode.BranchFalse);
+        }
+
+        private void ConditionalLoopStatement(Node node, Opcode exitCondition)
+        {
+            if(exitCondition != Opcode.BranchFalse && exitCondition != Opcode.BranchTrue)
+                throw new CodeGenException();
+            
             var loopStart = m_chunk.Count;
             Expression(node.Condition);
 
-            var exit = Emit(node, Opcode.BranchFalse);
+            var exit = Emit(node, exitCondition);
             Pop();
             Emit(node, Opcode.Pop);
             Statement(node.ChildLeft);

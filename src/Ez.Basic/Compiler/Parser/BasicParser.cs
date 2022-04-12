@@ -1,4 +1,4 @@
-﻿using Ez.Basic.Compiler.Lexer;
+using Ez.Basic.Compiler.Lexer;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -130,6 +130,7 @@ namespace Ez.Basic.Compiler.Parser
             if (Match(TokenType.Print)) return PrintStatement();
             if (Match(TokenType.Return)) return ReturnStatement();
             if (Match(TokenType.While)) return WhileStatement();
+            if (Match(TokenType.Until)) return UntilStatement();
             if (Match(TokenType.Do)) return Block(TokenType.Next);
 
             return ExpressionStatement();
@@ -225,6 +226,15 @@ namespace Ez.Basic.Compiler.Parser
             var body = Block(TokenType.Next);
 
             return MakeWhile(token, codition, body);
+        }
+
+        internal Node UntilStatement()
+        {
+            var token = Previous;
+            var codition = Expression();
+            var body = Block(TokenType.Next);
+
+            return MakeUntil(token, codition, body);
         }
 
         internal Node ExpressionStatement()
@@ -590,6 +600,12 @@ namespace Ez.Basic.Compiler.Parser
         private Node MakeWhile(Token token, Node condition, Node body)
         {
             var type = new NodeType(NodeClass.Stmt, NodeKind.While);
+            return GetNode(type, token, body, null, condition);
+        }
+
+        private Node MakeUntil(Token token, Node condition, Node body)
+        {
+            var type = new NodeType(NodeClass.Stmt, NodeKind.Until);
             return GetNode(type, token, body, null, condition);
         }
 
