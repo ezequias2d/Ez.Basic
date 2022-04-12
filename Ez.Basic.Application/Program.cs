@@ -87,18 +87,14 @@ ILogger<Program> logger = loggerFactory.CreateLogger<Program>();
     //    return tmp
     //end";
     var source = 
-  @"let a = 2
-    let b = 3
-    if b >= 3 or a != 2
-        a = a * a
-    else
-        a = 1
-    next
-    print a + b
-    print (true and false) or true";
+  @"let i = 0
+    while i < 10
+        print i
+        i = i + 1
+    next";
     var gc = new GC();
     var c = new BasicCompiler(logger);
-    var chunk = new Chunk(gc);
+    var chunk = new Chunk(gc, false);
     c.Compile(source, chunk);
 
     var vm = new VM(gc, logger);

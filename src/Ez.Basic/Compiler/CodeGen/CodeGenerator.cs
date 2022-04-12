@@ -64,6 +64,9 @@ namespace Ez.Basic.Compiler.CodeGen
                 case NodeKind.Block:
                     DeclareBlock(node);
                     break;
+                case NodeKind.While:
+                    WhileStatement(node);
+                    break;
                 default:
                     throw new CodeGenException();
             }
@@ -317,6 +320,37 @@ namespace Ez.Basic.Compiler.CodeGen
             m_chunk.WriteVarint(delta);
 
             Push();
+        }
+
+        private void WhileStatement(Node node)
+        {
+            var loopStart = m_chunk.Count;
+            Expression(node.Condition);
+
+            var exit = Emit(node, Opcode.BranchFalse);
+            Pop();
+            Emit(node, Opcode.Pop);
+            Statement(node.ChildLeft);
+
+            var loopBranch = Emit(node, Opcode.BranchAlways);
+            var loopOffset = loopStart - loopBranch;
+
+            var exitOffset = m_chunk.Count - exit;
+
+            int correctedExitOffset = exitOffset;
+            int correctedLoopOffset = loopOffset;
+
+            do
+            {
+                correctedExitOffset = exitOffset + Varint.EncodedSizeOf(correctedLoopOffset);
+                correctedLoopOffset = loopOffset - Varint.EncodedSizeOf(correctedExitOffset);
+            } while(correctedExitOffset != exitOffset + Varint.EncodedSizeOf(correctedLoopOffset) ||
+                    correctedLoopOffset != loopOffset - Varint.EncodedSizeOf(correctedExitOffset));
+
+            m_chunk.InsertVarint(loopBranch + 1, correctedLoopOffset);
+
+            m_chunk.InsertVarint(exit + 1, correctedExitOffset);
+            Emit(node, Opcode.Pop);
         }
 
         [Conditional("DEBUG")]
