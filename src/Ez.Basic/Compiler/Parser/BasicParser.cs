@@ -1,4 +1,4 @@
-using Ez.Basic.Compiler.Lexer;
+﻿using Ez.Basic.Compiler.Lexer;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -166,8 +166,8 @@ namespace Ez.Basic.Compiler.Parser
             });
 
             // create loop while
-            var condition = MakeLessEqualExpression(to.Token, name, to);
-            body = MakeWhile(token, condition, body);
+            var condition = MakeEqualExpression(to.Token, name, to);
+            body = MakeUntil(token, condition, body);
 
             // create let declaration and initializer.
             body = MakeBlock(token, mainBody.EndToken, new Node[]
@@ -689,10 +689,10 @@ namespace Ez.Basic.Compiler.Parser
             return MakeIncrementStatement(mainToken, name, expr);
         }
 
-        private Node MakeLessEqualExpression(Token mainToken, Token name, Node expr)
+        private Node MakeEqualExpression(Token mainToken, Token name, Node expr)
         {
             var variable = MakeVariable(name);
-            var comparison = MakeBinary(new Token(TokenType.LessEqual, mainToken.Lexeme, mainToken.Line), variable, expr);
+            var comparison = MakeBinary(new Token(TokenType.EqualEqual, mainToken.Lexeme, mainToken.Line), variable, expr);
             return comparison;
         }
     }
