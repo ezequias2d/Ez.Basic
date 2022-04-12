@@ -1,4 +1,4 @@
-using Ez.Basic.Compiler.Lexer;
+﻿using Ez.Basic.Compiler.Lexer;
 using Ez.Basic.VirtualMachine;
 using Microsoft.Extensions.Logging;
 using System;
@@ -516,8 +516,10 @@ namespace Ez.Basic.Compiler.CodeGen
         private void EndScope(Node node)
         {
             var delta = m_sp - m_scope.Depth;
-            
-            if(delta > 0)
+
+            if (delta == 1)
+                Emit(node, Opcode.Pop);
+            else if(delta > 1)
             {
                 Emit(node, Opcode.PopN);
                 m_chunk.WriteVarint(delta);
