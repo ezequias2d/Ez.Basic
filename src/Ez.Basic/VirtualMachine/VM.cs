@@ -180,15 +180,15 @@ namespace Ez.Basic.VirtualMachine
                         SetVariable(a);
                         break;
                     case Opcode.BranchFalse:
-                        a = Pop();
+                        a = Peek();
                         m_PC += m_chunk.ReadVariant(m_PC, out offset);
 
                         if (!a.Boolean)
-                            m_PC += offset;
+                            m_PC += offset - 1;
                         break;
                     case Opcode.BranchAlways:
                         m_PC += m_chunk.ReadVariant(m_PC, out offset);
-                        m_PC += offset;
+                        m_PC += offset - 1;
                         break;
                     case Opcode.Return:
                         //var value = Pop();

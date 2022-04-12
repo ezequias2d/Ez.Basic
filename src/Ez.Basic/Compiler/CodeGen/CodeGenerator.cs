@@ -93,28 +93,29 @@ namespace Ez.Basic.Compiler.CodeGen
             bool hasElse = node.ChildRight is not null;
             Expression(node.Condition);
 
-            var branch = Emit(node, Opcode.BranchFalse);
+            var elseBranch = Emit(node, Opcode.BranchFalse);
+            Emit(node, Opcode.Pop);
             Pop();
             Statement(node.ChildLeft);
 
-            int elseJump = m_chunk.Count;
-            if(hasElse)
-                elseJump = Emit(node, Opcode.BranchAlways);
 
+            var startElse = m_chunk.Count;
             if(hasElse)
             {
-                var elseBranch = m_chunk.Count;
-                Statement(node.ChildRight);
+                var skipElse = Emit(node, Opcode.BranchAlways);
 
-                var delta = m_chunk.Count - elseJump - 1;
-                m_chunk.InsertVarint(elseJump + 1, delta);
-                elseJump = elseBranch;
+                Emit(node, Opcode.Pop);
+                Statement(node.ChildRight);                
+                m_chunk.InsertVarint(skipElse + 1, m_chunk.Count - skipElse);
+
+                startElse += 1 + m_chunk.ReadVariant(skipElse + 1, out _);
             }
 
             {
-                var delta = elseJump - branch;
-                m_chunk.InsertVarint(branch + 1, delta);
+                var delta = startElse - elseBranch;
+                m_chunk.InsertVarint(elseBranch + 1, delta);
             }
+
         }
 
         private void Expression(Node node)
@@ -128,6 +129,7 @@ namespace Ez.Basic.Compiler.CodeGen
                 case NodeKind.Binary: Binary(node); break;
                 case NodeKind.Variable: Variable(node); break;
                 case NodeKind.Assign: Assign(node); break;
+                case NodeKind.Logical: Logical(node); break;
                 default:
                     throw new NotImplementedException();
             }
@@ -249,6 +251,55 @@ namespace Ez.Basic.Compiler.CodeGen
             Push();
         }
 
+        private void Logical(Node node)
+        {
+            EnsureLogical(node);
+
+            Expression(node.ChildLeft);
+
+            var op = node.Token.Type;
+
+            Pop(1);
+            Push();
+            switch(op)
+            {
+                case TokenType.And:
+                    LogicalAnd(node);
+                    break;
+                case TokenType.Or:
+                    LogicalOr(node);
+                    break;
+                default:
+                    throw new CodeGenException();
+            }
+        }
+
+        private void LogicalAnd(Node node)
+        {
+            var endJump = Emit(node, Opcode.BranchFalse);
+
+            Pop(1);
+            Emit(node, Opcode.Pop);
+            Expression(node.ChildRight);
+
+            m_chunk.InsertVarint(endJump + 1, m_chunk.Count - endJump);
+        }
+
+        private void LogicalOr(Node node)
+        {
+            var elseJump = Emit(node, Opcode.BranchFalse);
+            var endJump = Emit(node, Opcode.BranchAlways);
+
+            Pop();
+            Emit(node, Opcode.Pop);
+
+            var elseLocation = m_chunk.Count;
+            Expression(node.ChildRight);
+
+            m_chunk.InsertVarint(endJump + 1, m_chunk.Count - endJump);
+            m_chunk.InsertVarint(elseJump + 1, elseLocation - elseJump);
+        }
+
         private void Assign(Node node)
         {
             EnsureAssign(node);
@@ -298,6 +349,12 @@ namespace Ez.Basic.Compiler.CodeGen
         private void EnsureBinary(Node node)
         {
             EnsureExpr(node, NodeKind.Binary);
+        }
+
+        [Conditional("DEBUG")]
+        private void EnsureLogical(Node node)
+        {
+            EnsureExpr(node, NodeKind.Logical);
         }
 
         [Conditional("DEBUG")]

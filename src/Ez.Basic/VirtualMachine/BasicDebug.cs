@@ -89,9 +89,9 @@ namespace Ez.Basic.VirtualMachine
                 case Opcode.SetVariable:
                     return chunk.VarintArgumentInstruction(sb, "OP_SET_VARIABLE", offset);
                 case Opcode.BranchFalse:
-                    return chunk.VarintArgumentInstruction(sb, "OP_BRANCH_FALSE", offset);
+                    return chunk.BranchInstruction(sb, "OP_BRANCH_FALSE", offset);
                 case Opcode.BranchAlways:
-                    return chunk.VarintArgumentInstruction(sb, "OP_BRANCH_ALWAYS", offset);
+                    return chunk.BranchInstruction(sb, "OP_BRANCH_ALWAYS", offset);
                 case Opcode.Return:
                     return chunk.SimpleInstruction(sb, "OP_RETURN", offset);
                 default:
@@ -126,6 +126,13 @@ namespace Ez.Basic.VirtualMachine
         {
             var count = chunk.ReadVariant(offset + 1, out int n);
             sb.AppendLine($"{name}\t\t{n}");
+            return count + 1;
+        }
+
+        private static int BranchInstruction(this Chunk chunk, StringBuilder sb, string name, int offset)
+        {
+            var count = chunk.ReadVariant(offset + 1, out int n);
+            sb.AppendLine($"{name}\t\t{(offset + count + n).ToString("X4")}");
             return count + 1;
         }
     }

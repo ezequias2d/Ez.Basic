@@ -87,14 +87,15 @@ ILogger<Program> logger = loggerFactory.CreateLogger<Program>();
     //    return tmp
     //end";
     var source = 
-  @"let a = 3
+  @"let a = 2
     let b = 3
-    if a <= 2
+    if b >= 3 or a != 2
         a = a * a
-    else if a >= 3
+    else
         a = 1
     next
-    print a + b";
+    print a + b
+    print (true and false) or true";
     var gc = new GC();
     var c = new BasicCompiler(logger);
     var chunk = new Chunk(gc);
