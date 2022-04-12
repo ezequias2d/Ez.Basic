@@ -52,6 +52,7 @@ namespace Ez.Basic.VirtualMachine
                 var opcode = ReadOpcode();
                 Value a, b;
                 int offset;
+                int length;
                 switch(opcode)
                 {
                     #region constants
@@ -181,13 +182,19 @@ namespace Ez.Basic.VirtualMachine
                         break;
                     case Opcode.BranchFalse:
                         a = Peek();
-                        m_PC += m_chunk.ReadVariant(m_PC, out offset);
+                        length = m_chunk.ReadVariant(m_PC, out offset);
+                        
+                        if(offset > 0 || a.Boolean)
+                            m_PC += length;
 
                         if (!a.Boolean)
                             m_PC += offset - 1;
+
                         break;
                     case Opcode.BranchAlways:
-                        m_PC += m_chunk.ReadVariant(m_PC, out offset);
+                        length = m_chunk.ReadVariant(m_PC, out offset);
+                        if(offset > 0)
+                            m_PC += length;
                         m_PC += offset - 1;
                         break;
                     case Opcode.Return:

@@ -30,8 +30,15 @@ namespace Ez.Basic.VirtualMachine
             if (offset > 0 &&
                 line == chunk.LineNumberTable.GetLine(offset - 1))
                 sb.Append("   | ");
+            else if (line < 0)
+            {
+                sb.Append(" ----");
+            }
             else
+            {
+                sb.Append(' ');
                 sb.Append(line.ToString("D4"));
+            }
 
             sb.Append(" ");
 
@@ -118,7 +125,7 @@ namespace Ez.Basic.VirtualMachine
             else
                 str = value.ToString();
 
-            sb.AppendLine($"{name}\t\t{constant} '{str}'");
+            sb.AppendLine($"{name}\t\t\t{constant} '{str}'");
             return count + 1;
         }
 
@@ -132,7 +139,9 @@ namespace Ez.Basic.VirtualMachine
         private static int BranchInstruction(this Chunk chunk, StringBuilder sb, string name, int offset)
         {
             var count = chunk.ReadVariant(offset + 1, out int n);
-            sb.AppendLine($"{name}\t\t{(offset + count + n).ToString("X4")}");
+            if(n > 0)
+                n += count;
+            sb.AppendLine($"{name}\t\t{(offset + n).ToString("X4")}");
             return count + 1;
         }
     }
