@@ -87,11 +87,17 @@ ILogger<Program> logger = loggerFactory.CreateLogger<Program>();
     //    return tmp
     //end";
     var source = 
-  @"let i = 0
+  @"let a = 1
+    let b = 0
+    let i = 2
     while i < 10
-        print i
+        let c = a + b
+        b = a
+        a = c
         i = i + 1
-    next";
+        print i, "" "", a 
+    next
+    print (true and false) or true";
     var gc = new GC();
     var c = new BasicCompiler(logger);
     var chunk = new Chunk(gc, false);
