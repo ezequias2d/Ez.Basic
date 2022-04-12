@@ -185,6 +185,17 @@ namespace Ez.Basic.VirtualMachine
                         a = Pop();
                         SetVariable(a);
                         break;
+                    case Opcode.BranchTrue:
+                        a = Peek();
+                        length = m_chunk.ReadVariant(m_PC, out offset);
+                        
+                        if(offset > 0 || !a.Boolean)
+                            m_PC += length;
+
+                        if (a.Boolean)
+                            m_PC += offset - 1;
+
+                        break;
                     case Opcode.BranchFalse:
                         a = Peek();
                         length = m_chunk.ReadVariant(m_PC, out offset);

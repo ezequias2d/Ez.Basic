@@ -97,6 +97,8 @@ namespace Ez.Basic.VirtualMachine
                     return chunk.VarintArgumentInstruction(sb, "OP_GET_VARIABLE", offset);
                 case Opcode.SetVariable:
                     return chunk.VarintArgumentInstruction(sb, "OP_SET_VARIABLE", offset);
+                case Opcode.BranchTrue:
+                    return chunk.BranchInstruction(sb, "OP_BRANCH_TRUE", offset);
                 case Opcode.BranchFalse:
                     return chunk.BranchInstruction(sb, "OP_BRANCH_FALSE", offset);
                 case Opcode.BranchAlways:
