@@ -23,7 +23,7 @@ namespace Ez.Basic.VirtualMachine
             m_freeIndexes.Clear();
         }
 
-        public Reference AddObject(object obj)
+        public Reference AddObject(object obj, bool constant = false)
         {
             if(!m_heapInfo.TryGetValue(obj, out var data))
             {
@@ -46,7 +46,10 @@ namespace Ez.Basic.VirtualMachine
                     ReferenceCount = 0,
                 };
             }
-            data.ReferenceCount++;
+            if(constant)
+                data.ReferenceCount = -1;
+            else
+                data.ReferenceCount++;
             m_heapInfo[obj] = data;
             return new() { ID = data.Index, Computed = true };
         }
@@ -71,13 +74,20 @@ namespace Ez.Basic.VirtualMachine
             if (!m_heapInfo.TryGetValue(obj, out var data))
                 // the object does exist, so must be a bug
                 throw new NotImplementedException();
-            if(--data.ReferenceCount <= 0)
+            
+            // constant
+            if(data.ReferenceCount == -1)
+                return;
+
+            if(--data.ReferenceCount == 0)
             {
                 // disposes
                 m_freeIndexes.Add(data.Index);
                 m_heap[data.Index] = null;
                 m_heapInfo.Remove(obj);
             }
+            else
+                m_heapInfo[obj] = data;
         }
 
         public void RemoveObject(ref Reference reference)

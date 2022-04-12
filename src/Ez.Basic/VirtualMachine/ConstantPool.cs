@@ -30,7 +30,7 @@ namespace Ez.Basic.VirtualMachine
             var index = m_values.FindIndex(c => c.IsObject && m_gc.GetObject(c.ObjectReference).Equals(value));
             if(index == -1)
             {
-                var reference = m_gc.AddObject(value);
+                var reference = m_gc.AddObject(value, true);
                 m_values.Add(reference);
                 index = m_values.Count - 1;
             }
