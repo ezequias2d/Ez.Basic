@@ -62,7 +62,7 @@ namespace Ez.Basic
 
         private static uint ZigZagEncoding(int value)
         {
-            return ((uint)value >> 31) ^ ((uint)value << 1);
+            return (uint)((value >> 31) ^ (value << 1));
         }
 
         private static int ZigZagDecoding(uint n)
