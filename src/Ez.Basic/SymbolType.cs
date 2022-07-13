@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Ez.Basic.Compiler
+namespace Ez.Basic
 {
-    internal enum SymbolType
+    public enum SymbolType
     {
         Function = 1 << 0,
         Method = 1 << 1,
