@@ -12,24 +12,25 @@ namespace Ez.Basic.Compiler.CodeGen
 {
     internal ref struct CodeGenerator
     {
-        private readonly Chunk m_chunk;
+        private readonly Module m_module;
         private readonly ILogger m_logger;
         private readonly Dictionary<string, int> m_locals;
         private SymbolTable m_scope;
         private bool m_hadError;
         private int m_sp;
+        private Chunk m_chunk;
 
-        public CodeGenerator(ILogger logger, Chunk targetChunk)
+        public CodeGenerator(ILogger logger, Module module)
         {
             m_logger = logger;
-            m_chunk = targetChunk;
+            m_module = module;
             m_hadError = false;
             m_locals = new Dictionary<string, int>();
             m_scope = null;
             m_sp = 0;
-            BeginScope();
+            m_chunk = module.Chunk;
+            m_scope = module.SymbolTable;
         }
-
 
         public bool CodeGen(Node block)
         {
@@ -37,13 +38,25 @@ namespace Ez.Basic.Compiler.CodeGen
             
             foreach(var stmt in block.Data)
             {
-                Statement(stmt);
+                Declaration(stmt);
             }
 
             return !m_hadError;
         }
 
-        private void Statement(Node node)
+        private void DefStatement(Node node)
+        {
+            EnsureStmt(node, NodeKind.Def);
+            DeclareFunction(node, true);
+        }
+
+        private void SubStatement(Node node)
+        {
+            EnsureStmt(node, NodeKind.Sub);
+            DeclareFunction(node, false);
+        }
+
+        private void Statement(Node node, IList<Node> returnNodes)
         {
             if (node.Type.Class != NodeClass.Stmt)
                 throw new CodeGenException();
@@ -56,20 +69,43 @@ namespace Ez.Basic.Compiler.CodeGen
                 case NodeKind.Expr:
                     ExpressionStatement(node);
                     break;
-                case NodeKind.Let:
-                    LetStatement(node);
-                    break;
                 case NodeKind.If:
-                    IfStatement(node);
+                    IfStatement(node, returnNodes);
                     break;
                 case NodeKind.Block:
-                    DeclareBlock(node);
+                    BlockStatment(node, returnNodes);
                     break;
                 case NodeKind.Until:
-                    UntilStatement(node);
+                    UntilStatement(node, returnNodes);
                     break;
                 case NodeKind.While:
-                    WhileStatement(node);
+                    WhileStatement(node, returnNodes);
+                    break;
+                case NodeKind.Def:
+                case NodeKind.Let:
+                    Declaration(node);
+                    break;
+                case NodeKind.Return:
+                    Return(node); 
+                    returnNodes.Add(node);
+                    break;
+                default:
+                    throw new CodeGenException();
+            }
+        }
+
+        private void Declaration(Node node)
+        {
+            switch(node.Type.Kind)
+            {
+                case NodeKind.Def:
+                    DefStatement(node);
+                    break;
+                case NodeKind.Sub:
+                    SubStatement(node);
+                    break;
+                case NodeKind.Let:
+                    LetStatement(node);
                     break;
                 default:
                     throw new CodeGenException();
@@ -85,7 +121,7 @@ namespace Ez.Basic.Compiler.CodeGen
 
         private void ExpressionStatement(Node node)
         {
-            Expression(node.ChildLeft);
+            Expression(node.ChildLeft, false);
             Pop();
             Emit(node, Opcode.Pop);
         }
@@ -95,7 +131,7 @@ namespace Ez.Basic.Compiler.CodeGen
             DeclareVariable(node);
         }
 
-        private void IfStatement(Node node)
+        private void IfStatement(Node node, IList<Node> returnStatements)
         {
             bool hasElse = node.ChildRight is not null;
             Expression(node.Condition);
@@ -103,8 +139,7 @@ namespace Ez.Basic.Compiler.CodeGen
             var elseBranch = Emit(node, Opcode.BranchFalse);
             Emit(node, Opcode.Pop);
             Pop();
-            Statement(node.ChildLeft);
-
+            Statement(node.ChildLeft, returnStatements);
 
             var startElse = m_chunk.Count;
             if(hasElse)
@@ -112,7 +147,7 @@ namespace Ez.Basic.Compiler.CodeGen
                 var skipElse = Emit(node, Opcode.BranchAlways);
 
                 Emit(node, Opcode.Pop);
-                Statement(node.ChildRight);                
+                Statement(node.ChildRight, returnStatements);
                 m_chunk.InsertVarint(skipElse + 1, m_chunk.Count - skipElse);
 
                 startElse += 1 + m_chunk.ReadVariant(skipElse + 1, out _);
@@ -125,7 +160,7 @@ namespace Ez.Basic.Compiler.CodeGen
 
         }
 
-        private void Expression(Node node)
+        private void Expression(Node node, bool needValue = true)
         {
             Debug.Assert(node.Type.Class == NodeClass.Expr);
             
@@ -137,6 +172,7 @@ namespace Ez.Basic.Compiler.CodeGen
                 case NodeKind.Variable: Variable(node); break;
                 case NodeKind.Assign: Assign(node); break;
                 case NodeKind.Logical: Logical(node); break;
+                case NodeKind.Call: Call(node, needValue); break;
                 default:
                     throw new NotImplementedException();
             }
@@ -159,7 +195,6 @@ namespace Ez.Basic.Compiler.CodeGen
                 case LiteralType.Number: Number(node); break;
                 default: throw new CodeGenException();
             }
-            Push();
         }
 
         private void Number(Node node)
@@ -251,14 +286,14 @@ namespace Ez.Basic.Compiler.CodeGen
         {
             EnsureVariable(node);
 
-            if (!m_scope.Lookup(node.Token.Lexeme.ToString(), out var depth))
+            if (!m_scope.Lookup(node.Token.Lexeme.ToString(), out SymbolEntry entry))
                 ErrorAt(node, "The variable must be declared.");
 
-            var delta = m_sp - depth;
+            var delta = m_sp - entry.Data;  // sp - depth
             Emit(node, Opcode.GetVariable);
             m_chunk.WriteVarint(delta);
-
             Push();
+
         }
 
         private void Logical(Node node)
@@ -310,6 +345,41 @@ namespace Ez.Basic.Compiler.CodeGen
             m_chunk.InsertVarint(elseJump + 1, elseLocation - elseJump);
         }
 
+        private void Call(Node node, bool needValue)
+        {
+            EnsureExpr(node, NodeKind.Call);
+            var name = node.ChildLeft.Token.Lexeme.ToString();
+
+            if (!m_scope.Lookup(name, out SymbolEntry entry))
+                ErrorAt(node, $"The function or method '{name}' must be declared.");
+            
+            if(needValue && entry.Type.HasFlag(SymbolType.Method))
+                ErrorAt(node, $"The expression '{name}' does not produce a value.");
+            
+            var sp = m_sp;
+            foreach(var arg in node.Data)
+                Expression(arg);
+
+            EmitConstant(node, name);
+            Emit(node, Opcode.Call);
+            
+            var d = m_sp - sp;
+
+            if (d > 0 && entry.Type.HasFlag(SymbolType.Function))
+                // ensure that dont pops the arg0, because is the return value.
+                d--;
+
+            Pop(d);
+            EmitPop(node, d);
+        }
+
+        private void Return(Node node)
+        {
+            EnsureStmt(node, NodeKind.Return);
+            EndFunctionScope(node);
+            Emit(node, Opcode.Return);
+        }
+
         private void Assign(Node node)
         {
             EnsureAssign(node);
@@ -319,27 +389,21 @@ namespace Ez.Basic.Compiler.CodeGen
             Pop();
             var lexeme = node.ChildLeft.Token.Lexeme.ToString();
 
-            if (!m_scope.Lookup(lexeme, out var depth))
-                ErrorAt(node, "The variable must be declared.");
 
-            var delta = m_sp - depth;
-            Emit(node, Opcode.SetVariable);
-            m_chunk.WriteVarint(delta);
-
-            Push();
+            EmitAssign(node, lexeme,"The variable must be declared.");
         }
 
-        private void UntilStatement(Node node)
+        private void UntilStatement(Node node, IList<Node> returnStatements)
         {
-            ConditionalLoopStatement(node, Opcode.BranchTrue);
+            ConditionalLoopStatement(node, Opcode.BranchTrue, returnStatements);
         }
 
-        private void WhileStatement(Node node)
+        private void WhileStatement(Node node, IList<Node> returnStatements)
         {
-            ConditionalLoopStatement(node, Opcode.BranchFalse);
+            ConditionalLoopStatement(node, Opcode.BranchFalse, returnStatements);
         }
 
-        private void ConditionalLoopStatement(Node node, Opcode exitCondition)
+        private void ConditionalLoopStatement(Node node, Opcode exitCondition,  IList<Node> returnStatements)
         {
             if(exitCondition != Opcode.BranchFalse && exitCondition != Opcode.BranchTrue)
                 throw new CodeGenException();
@@ -349,8 +413,8 @@ namespace Ez.Basic.Compiler.CodeGen
 
             var exit = Emit(node, exitCondition);
             Pop();
-            Emit(node, Opcode.Pop);
-            Statement(node.ChildLeft);
+            EmitPop(node, 1);
+            Statement(node.ChildLeft, returnStatements);
 
             var loopBranch = Emit(node, Opcode.BranchAlways);
             var loopOffset = loopStart - loopBranch;
@@ -445,18 +509,69 @@ namespace Ez.Basic.Compiler.CodeGen
         private void EmitConstant(Node node, double value)
         {
             Emit(node, Opcode.Constant);
-            var index = m_chunk.AddConstant(value);
+            var index = m_module.AddConstant(value);
             m_chunk.WriteVarint(index);
+            Push();
         }
 
         private void EmitNull(Node node)
         {
             Emit(node, Opcode.Null);
+            Push();
         }
 
         private T LastEmitted<T>() where T : unmanaged
         {
             return m_chunk.Peek<T>();
+        }
+
+        private void DeclareFunction(Node node, bool returnValue)
+        {
+            const string returnVariable = "@return";
+            var startPc = m_chunk.Count;
+            var name = node.Token.Lexeme.ToString();
+
+            SymbolType type = returnValue ? SymbolType.Function : SymbolType.Method;
+            var returnStatements = new List<Node>();
+
+            BeginScope(returnValue ? SymbolTableType.Function : SymbolTableType.Method);
+
+            var @params = node.Parameters;
+            var paramCount = node.Parameters.Length;
+            for (var i = 0; i < paramCount; i++)
+                AddParam(@params[i].Lexeme.ToString(), m_sp - paramCount + i + 1);
+
+            if (returnValue)
+            {
+                if (paramCount < 1)
+                {
+                    EmitNull(node);
+                    Push();
+                    paramCount = 1;
+                }
+
+                AddParam(returnVariable, m_sp - paramCount + 2);
+            }
+           
+
+            foreach(var stmt in node.ChildRight.Data)
+                Statement(stmt, returnStatements);
+
+            //EmitConstant(node, 0);
+            //EmitAssign(node, returnVariable);
+
+            if(returnValue) 
+            {
+                if (returnStatements.Count == 0)
+                    throw new CodeGenException("Functions must be contains return statement");
+            }
+            else
+            {
+                EndFunctionScope(node);
+                Emit(node, Opcode.Return);
+            }
+        
+            AddSymbol(name, type, startPc);
         }
 
         private void DeclareVariable(Node node)
@@ -495,11 +610,11 @@ namespace Ez.Basic.Compiler.CodeGen
             AddLocal(name, type);
         }
 
-        private void DeclareBlock(Node node)
+        private void BlockStatment(Node node, IList<Node> returnNodes)
         {
-            BeginScope();
+            BeginScope(SymbolTableType.None);
             foreach(var stmt in node.Data)
-                Statement(stmt);
+                Statement(stmt, returnNodes);
             EndScope(node);
         }
 
@@ -508,32 +623,67 @@ namespace Ez.Basic.Compiler.CodeGen
             m_scope.Insert(name, type, m_sp);
         }
 
-        private void BeginScope()
+        private void AddParam(string name, int index)
         {
-            m_scope = new SymbolTable(m_scope, m_sp);
+            m_scope.Insert(name, SymbolType.Variable, m_sp + index);
         }
 
-        private void EndScope(Node node)
+        private void AddSymbol(string name, SymbolType type, int data)
         {
-            var delta = m_sp - m_scope.Depth;
+            m_scope.Insert(name, type, data);
+        }
 
-            if (delta == 1)
-                Emit(node, Opcode.Pop);
-            else if(delta > 1)
-            {
-                Emit(node, Opcode.PopN);
-                m_chunk.WriteVarint(delta);
-            }
+        private void BeginScope(SymbolTableType type)
+        {
+            m_scope = new SymbolTable(m_scope, type, m_sp);
+        }
+
+        private void EndScope(Node node, int remaining = 0)
+        {
+            var delta = m_sp - (m_scope.Depth + remaining);
+
+            //Pop(delta);
+            EmitPop(node, delta);
 
             m_sp = m_scope.Depth;
             m_scope = m_scope.Parent;
         }
 
+        private void EndFunctionScope(Node node)
+        {
+            while (m_scope.Type != SymbolTableType.Function && m_scope.Type != SymbolTableType.Method)
+            {
+                EndScope(node);
+            }
+
+            if (node.ChildLeft is not null)
+            {
+                Expression(node.ChildLeft);
+                EmitAssign(node, "@return", "The 'return' keyword only work inside function(def) statements.");
+            }
+
+            if (m_scope.Type == SymbolTableType.Function)
+                EndScope(node, 1);
+            else
+                EndScope(node);
+        }
+
         private void EmitConstant(Node node, string value)
         {
             Emit(node, Opcode.Constant);
-            var index = m_chunk.AddStringConstant(value);
+            var index = m_module.AddStringConstant(value);
             m_chunk.WriteVarint(index);
+        }
+
+        private void EmitPop(Node node, int n)
+        {
+            if(n == 1)
+                Emit(node, Opcode.Pop);
+            else if(n > 1)
+            {
+                Emit(node, Opcode.PopN);
+                m_chunk.WriteVarint(n);
+            }
         }
 
         private CodeGenException ErrorAtCurrent(Node node, string message)
@@ -582,6 +732,18 @@ namespace Ez.Basic.Compiler.CodeGen
         {
             m_sp -= count;
             return m_sp;
+        }
+
+        private void EmitAssign(Node node, string variable, string message = "The variable must be declared.")
+        {
+            if (!m_scope.Lookup(variable, out SymbolEntry entry))
+                ErrorAt(node, message);
+
+            var delta = m_sp - entry.Data;  // sp - depth
+            Emit(node, Opcode.SetVariable);
+            m_chunk.WriteVarint(delta);
+
+            Push();
         }
     }
 }

@@ -3,7 +3,6 @@ using Ez.Basic.Compiler.Lexer;
 using Ez.Basic.Compiler.Parser;
 using Ez.Basic.VirtualMachine;
 using Microsoft.Extensions.Logging;
-using System;
 
 namespace Ez.Basic
 {
@@ -13,37 +12,35 @@ namespace Ez.Basic
 
         private BasicParser m_parser;
         private CodeGenerator m_codeGen;
-        private Chunk m_compilingChunk;
 
         public BasicCompiler(ILogger logger)
         {
             m_logger = logger;
             m_parser = default;
             m_codeGen = default;
-            m_compilingChunk = null;
         }
 
-        public bool Compile(string source, Chunk chunk)
+        public Module Compile(string source, GC gc, bool debug = true)
         {
+            var module = new Module(gc, debug);
             var scanner = new Scanner(source);
-            m_compilingChunk = chunk;
             m_parser = new BasicParser(m_logger, scanner);
 
             m_parser.Advance();
 
-            var block = m_parser.Block(TokenType.EoF, TokenType.EoF);
+            var block = m_parser.Block(false, TokenType.EoF, TokenType.EoF);
 
             if (m_parser.HadError)
-                return false;
+                return null;
 
-            m_codeGen = new CodeGenerator(m_logger, m_compilingChunk);
+            m_codeGen = new CodeGenerator(m_logger, module);
             if (!m_codeGen.CodeGen(block))
-                return false;
+                return null;
 
-            Console.WriteLine(block.ToString());
+            System.Console.WriteLine(block.ToString());
 
             EndCompile();
-            return true;
+            return module;
         }
 
         private void EndCompile()
@@ -51,11 +48,9 @@ namespace Ez.Basic
             EmitReturn();
         }
 
-        internal Chunk CompilingChunk => m_compilingChunk;
-
         public void Emit<T>(T value) where T : unmanaged
         {
-            CompilingChunk.Write(value, m_parser.Current.Line);
+            //CompilingChunk.Write(value, m_parser.Current.Line);
         }
 
         private void EmitReturn()

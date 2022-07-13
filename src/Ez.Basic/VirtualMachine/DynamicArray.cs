@@ -81,6 +81,19 @@ namespace Ez.Basic.VirtualMachine
             Update(index, value);
             m_count += size;
         }
+        
+        public void Remove<T>(int index) where T : unmanaged
+        {
+            var size = SizeOf<T>();
+
+            var dst = m_array.AsSpan().Slice(index, m_count - index - size);
+            var src = m_array.AsSpan().Slice(index + size, m_count - index - size);
+            Span<byte> tmp = stackalloc byte[src.Length];
+            
+            Copy<byte>(tmp, src);
+            Copy<byte>(dst, tmp);
+            m_count -= size;
+        }
 
         public T Get<T>(int location) where T : unmanaged
         {

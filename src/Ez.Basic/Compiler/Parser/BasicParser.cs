@@ -123,20 +123,20 @@ namespace Ez.Basic.Compiler.Parser
             //}
         }
 
-        internal Node Statement()
+        internal Node Statement(bool returnValue)
         {
-            if (Match(TokenType.For)) return ForStatement();
-            if (Match(TokenType.If)) return IfStatement();
+            if (Match(TokenType.For)) return ForStatement(returnValue);
+            if (Match(TokenType.If)) return IfStatement(returnValue);
             if (Match(TokenType.Print)) return PrintStatement();
-            if (Match(TokenType.Return)) return ReturnStatement();
-            if (Match(TokenType.While)) return WhileStatement();
-            if (Match(TokenType.Until)) return UntilStatement();
-            if (Match(TokenType.Do)) return Block(TokenType.Next);
+            if (Match(TokenType.Return)) return ReturnStatement(returnValue);
+            if (Match(TokenType.While)) return WhileStatement(returnValue);
+            if (Match(TokenType.Until)) return UntilStatement(returnValue);
+            if (Match(TokenType.Do)) return Block(returnValue, TokenType.Next);
 
             return ExpressionStatement();
         }
 
-        internal Node ForStatement()
+        internal Node ForStatement(bool returnValue)
         {
             var token = Previous;
 
@@ -153,7 +153,7 @@ namespace Ez.Basic.Compiler.Parser
             if(Match(TokenType.Step))
                 step = Expression();
 
-            var mainBody = Block(TokenType.Next);
+            var mainBody = Block(returnValue, TokenType.Next);
             Node body = mainBody;
 
 
@@ -179,20 +179,20 @@ namespace Ez.Basic.Compiler.Parser
             return body;
         }
 
-        internal Node IfStatement()
+        internal Node IfStatement(bool returnValue)
         {
             var token = Previous;
             var condition = Expression();
 
-            var thenBranch = Block(TokenType.Next, TokenType.Else);
+            var thenBranch = Block(returnValue, TokenType.Next, TokenType.Else);
             Node elseBranch = null;
 
             if(thenBranch.EndToken.Type == TokenType.Else)
             {
                 if(Match(TokenType.If))
-                    elseBranch = IfStatement();
+                    elseBranch = IfStatement(returnValue);
                 else
-                    elseBranch = Block(TokenType.Next);
+                    elseBranch = Block(returnValue, TokenType.Next);
             }
 
             return MakeIf(token, condition, thenBranch, elseBranch);
@@ -212,27 +212,31 @@ namespace Ez.Basic.Compiler.Parser
             return MakeStatement(NodeKind.Print, printToken, expr);
         }
 
-        internal Node ReturnStatement()
+        internal Node ReturnStatement(bool returnValue)
         {
             var keyword = Previous;
-            var value = Expression();
+
+            Node value = null;
+            if(returnValue)
+                value = Expression();
+
             return MakeStatement(NodeKind.Return, keyword, value);
         }
 
-        internal Node WhileStatement() 
+        internal Node WhileStatement(bool returnValue) 
         {
             var token = Previous;
             var codition = Expression();
-            var body = Block(TokenType.Next);
+            var body = Block(returnValue, TokenType.Next);
 
             return MakeWhile(token, codition, body);
         }
 
-        internal Node UntilStatement()
+        internal Node UntilStatement(bool returnValue)
         {
             var token = Previous;
             var codition = Expression();
-            var body = Block(TokenType.Next);
+            var body = Block(returnValue, TokenType.Next);
 
             return MakeUntil(token, codition, body);
         }
@@ -243,16 +247,18 @@ namespace Ez.Basic.Compiler.Parser
             return MakeStatement(NodeKind.Expr, expr.Token, expr);
         }
 
-        internal Node Declaration()
+        internal Node Declaration(bool returnValue)
         {
             try
             {
                 if (Match(TokenType.Def))
-                    return DefDeclaration();
+                    return FunctionDeclaration(NodeKind.Def, true);
+                if (Match(TokenType.Sub))
+                    return FunctionDeclaration(NodeKind.Sub, false);
                 if (Match(TokenType.Let))
                     return LetDeclaration();
 
-                return Statement();
+                return Statement(returnValue);
             }
             catch (ParserException e)
             {
@@ -261,7 +267,7 @@ namespace Ez.Basic.Compiler.Parser
             }
         }
 
-        internal Node DefDeclaration()
+        internal Node FunctionDeclaration(NodeKind kind, bool returnValue)
         {
             Consume(TokenType.Identifier, "Expect a identifier for function.");
             var name = Previous;
@@ -283,9 +289,9 @@ namespace Ez.Basic.Compiler.Parser
             }
 
             Consume(TokenType.RightParen, "Expect ')' after parameters.");
-            var body = Block(TokenType.End);
+            var body = Block(returnValue, TokenType.End);
 
-            return MakeDef(name, parameters, body);
+            return MakeFunction(kind, name, parameters, body);
         }
 
         internal Node LetDeclaration()
@@ -300,13 +306,13 @@ namespace Ez.Basic.Compiler.Parser
             return MakeLet(name, initializer);
         }
 
-        internal Node Block(TokenType end, TokenType alternativeEnd = TokenType.None)
+        internal Node Block(bool returnValue, TokenType end, TokenType alternativeEnd = TokenType.None)
         {
             var token = Previous;
             var statements = new List<Node>();
 
             while(!Check(end) && !Check(alternativeEnd) && !Scanner.IsAtEnd())
-                statements.Add(Declaration());
+                statements.Add(Declaration(returnValue));
 
             ConsumeAny(end, alternativeEnd, $"Expect '{end}' after the code block.");
 
@@ -584,9 +590,9 @@ namespace Ez.Basic.Compiler.Parser
             return GetNode(type, token, thenBranch, elseBranch, condition);
         }
 
-        private Node MakeDef(Token name, Token[] parameters, Node body)
+        private Node MakeFunction(NodeKind kind, Token name, Token[] parameters, Node body)
         {
-            var type = new NodeType(NodeClass.Stmt, NodeKind.Def);
+            var type = new NodeType(NodeClass.Stmt, kind);
             var node = GetNode(type, name, null, body);
             node.Parameters = parameters;
             return node;

@@ -96,7 +96,7 @@ namespace Ez.Basic.Compiler.Lexer
 
         // declaration
         Def,        // function
-        Sub,
+        Sub,        // method
         Mould,      // basically class
         Module,     // basically static class
         Global,     // exposes globaly

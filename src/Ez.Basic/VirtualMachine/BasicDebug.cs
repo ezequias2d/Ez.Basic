@@ -9,26 +9,26 @@ namespace Ez.Basic.VirtualMachine
 {
     public static class BasicDebug
     {
-        public static void DisassembleChunk(this Chunk chunk, ILogger logger, string name)
+        public static void Disassemble(this Module module, ILogger logger, string name)
         {
             logger.LogDebug($"== {name} ==");
             var sb = new StringBuilder();
-            for (var offset = 0; offset < chunk.Count;)
+            for (var offset = 0; offset < module.Chunk.Count;)
             {
-                offset += chunk.DisassembleInstruction(sb, offset);
+                offset += module.DisassembleInstruction(sb, offset);
                 logger.LogDebug(sb.ToString());
                 sb.Clear();
             }
         }
 
-        internal static int DisassembleInstruction(this Chunk chunk, StringBuilder sb, int offset)
+        internal static int DisassembleInstruction(this Module module, StringBuilder sb, int offset)
         {
             sb.Append(offset.ToString("X4"));
 
             // add line number
-            var line = chunk.LineNumberTable.GetLine(offset);
+            var line = module.Chunk.LineNumberTable.GetLine(offset);
             if (offset > 0 &&
-                line == chunk.LineNumberTable.GetLine(offset - 1))
+                line == module.Chunk.LineNumberTable.GetLine(offset - 1))
                 sb.Append("   | ");
             else if (line < 0)
             {
@@ -42,69 +42,71 @@ namespace Ez.Basic.VirtualMachine
 
             sb.Append(" ");
 
-            var instruction = chunk.Read<Opcode>(offset);
+            var instruction = module.Chunk.Read<Opcode>(offset);
             switch (instruction)
             {
                 #region constants
                 case Opcode.Constant:
-                    return chunk.ConstantInstruction(sb, "OP_CONSTANT", offset);
+                    return module.ConstantInstruction(sb, "OP_CONSTANT", offset);
                 case Opcode.Null:
-                    return chunk.SimpleInstruction(sb, "OP_NULL", offset);
+                    return module.SimpleInstruction(sb, "OP_NULL", offset);
                 case Opcode.True:
-                    return chunk.SimpleInstruction(sb, "OP_TRUE", offset);
+                    return module.SimpleInstruction(sb, "OP_TRUE", offset);
                 case Opcode.False:
-                    return chunk.SimpleInstruction(sb, "OP_FALSE", offset);
+                    return module.SimpleInstruction(sb, "OP_FALSE", offset);
                 case Opcode.Pop:
-                    return chunk.SimpleInstruction(sb, "OP_POP", offset);
+                    return module.SimpleInstruction(sb, "OP_POP", offset);
                 case Opcode.PopN:
-                    return chunk.VarintArgumentInstruction(sb, "OP_POP_N", offset);
+                    return module.VarintArgumentInstruction(sb, "OP_POP_N", offset);
                 #endregion
                 #region logical
                 case Opcode.Equal:
-                    return chunk.SimpleInstruction(sb, "OP_EQUAL", offset);
+                    return module.SimpleInstruction(sb, "OP_EQUAL", offset);
                 case Opcode.NotEqual:
-                    return chunk.SimpleInstruction(sb, "OP_NOT_EQUAL", offset);
+                    return module.SimpleInstruction(sb, "OP_NOT_EQUAL", offset);
                 case Opcode.Greater:
-                    return chunk.SimpleInstruction(sb, "OP_GREATER", offset);
+                    return module.SimpleInstruction(sb, "OP_GREATER", offset);
                 case Opcode.GreaterEqual:
-                    return chunk.SimpleInstruction(sb, "OP_GREATER_EQUAL", offset);
+                    return module.SimpleInstruction(sb, "OP_GREATER_EQUAL", offset);
                 case Opcode.Less:
-                    return chunk.SimpleInstruction(sb, "OP_LESS", offset);
+                    return module.SimpleInstruction(sb, "OP_LESS", offset);
                 case Opcode.LessEqual:
-                    return chunk.SimpleInstruction(sb, "OP_LESS_EQUAL", offset);
+                    return module.SimpleInstruction(sb, "OP_LESS_EQUAL", offset);
                 case Opcode.Not:
-                    return chunk.SimpleInstruction(sb, "OP_NOT", offset);
+                    return module.SimpleInstruction(sb, "OP_NOT", offset);
                 #endregion
                 #region arithmetic
                 case Opcode.Add:
-                    return chunk.SimpleInstruction(sb, "OP_ADD", offset);
+                    return module.SimpleInstruction(sb, "OP_ADD", offset);
                 case Opcode.Subtract:
-                    return chunk.SimpleInstruction(sb, "OP_SUB", offset);
+                    return module.SimpleInstruction(sb, "OP_SUB", offset);
                 case Opcode.Multiply:
-                    return chunk.SimpleInstruction(sb, "OP_MUL", offset);
+                    return module.SimpleInstruction(sb, "OP_MUL", offset);
                 case Opcode.Divide:
-                    return chunk.SimpleInstruction(sb, "OP_DIV", offset);
+                    return module.SimpleInstruction(sb, "OP_DIV", offset);
                 case Opcode.Mod:
-                    return chunk.SimpleInstruction(sb, "OP_MOD", offset);
+                    return module.SimpleInstruction(sb, "OP_MOD", offset);
                 case Opcode.Negate:
-                    return chunk.SimpleInstruction(sb, "OP_NEGATE", offset);
+                    return module.SimpleInstruction(sb, "OP_NEGATE", offset);
                 #endregion
                 case Opcode.Concatenate:
-                    return chunk.SimpleInstruction(sb, "OP_CONCATENATE", offset);
+                    return module.SimpleInstruction(sb, "OP_CONCATENATE", offset);
                 case Opcode.Print:
-                    return chunk.SimpleInstruction(sb, "OP_PRINT", offset);
+                    return module.SimpleInstruction(sb, "OP_PRINT", offset);
                 case Opcode.GetVariable:
-                    return chunk.VarintArgumentInstruction(sb, "OP_GET_VARIABLE", offset);
+                    return module.VarintArgumentInstruction(sb, "OP_GET_VARIABLE", offset);
                 case Opcode.SetVariable:
-                    return chunk.VarintArgumentInstruction(sb, "OP_SET_VARIABLE", offset);
+                    return module.VarintArgumentInstruction(sb, "OP_SET_VARIABLE", offset);
                 case Opcode.BranchTrue:
-                    return chunk.BranchInstruction(sb, "OP_BRANCH_TRUE", offset);
+                    return module.BranchInstruction(sb, "OP_BRANCH_TRUE", offset);
                 case Opcode.BranchFalse:
-                    return chunk.BranchInstruction(sb, "OP_BRANCH_FALSE", offset);
+                    return module.BranchInstruction(sb, "OP_BRANCH_FALSE", offset);
                 case Opcode.BranchAlways:
-                    return chunk.BranchInstruction(sb, "OP_BRANCH_ALWAYS", offset);
+                    return module.BranchInstruction(sb, "OP_BRANCH_ALWAYS", offset);
+                case Opcode.Call:
+                    return module.SimpleInstruction(sb, "OP_CALL", offset);
                 case Opcode.Return:
-                    return chunk.SimpleInstruction(sb, "OP_RETURN", offset);
+                    return module.SimpleInstruction(sb, "OP_RETURN", offset);
                 default:
                     sb.Append("Unknown opcode ");
                     sb.AppendLine(instruction.ToString());
@@ -112,20 +114,20 @@ namespace Ez.Basic.VirtualMachine
             }
         }
 
-        private static int SimpleInstruction(this Chunk chunk, StringBuilder sb, string name, int offset)
+        private static int SimpleInstruction(this Module module, StringBuilder sb, string name, int offset)
         {
             sb.AppendLine(name);
             return 1;
         }
 
-        private static int ConstantInstruction(this Chunk chunk, StringBuilder sb, string name, int offset)
+        private static int ConstantInstruction(this Module module, StringBuilder sb, string name, int offset)
         {
-            var count = chunk.ReadVariant(offset + 1, out int constant);
-            var value = chunk.GetConstant(constant);
+            var count = module.Chunk.ReadVariant(offset + 1, out int constant);
+            var value = module.GetConstant(constant);
 
             string str;
             if (value.IsObject)
-                str = chunk.GC.GetObject(value.ObjectReference).ToString();
+                str = module.GC.GetObject(value.ObjectReference).ToString();
             else
                 str = value.ToString();
 
@@ -133,16 +135,16 @@ namespace Ez.Basic.VirtualMachine
             return count + 1;
         }
 
-        private static int VarintArgumentInstruction(this Chunk chunk, StringBuilder sb, string name, int offset)
+        private static int VarintArgumentInstruction(this Module module, StringBuilder sb, string name, int offset)
         {
-            var count = chunk.ReadVariant(offset + 1, out int n);
+            var count = module.Chunk.ReadVariant(offset + 1, out int n);
             sb.AppendLine($"{name}\t\t{n}");
             return count + 1;
         }
 
-        private static int BranchInstruction(this Chunk chunk, StringBuilder sb, string name, int offset)
+        private static int BranchInstruction(this Module module, StringBuilder sb, string name, int offset)
         {
-            var count = chunk.ReadVariant(offset + 1, out int n);
+            var count = module.Chunk.ReadVariant(offset + 1, out int n);
             if(n > 0)
                 n += count;
             sb.AppendLine($"{name}\t\t{(offset + n).ToString("X4")}");

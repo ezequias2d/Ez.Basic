@@ -87,23 +87,30 @@ ILogger<Program> logger = loggerFactory.CreateLogger<Program>();
     //    return tmp
     //end";
     var source = 
-  @"let a = 1
-    let b = 0
-    for i = 3 to 10 step 1
-        let c = a + b
-        b = a
-        a = c
-        print i, "" "", a 
-    next";
+  @"def fib(n)
+        let a = 1
+        let b = 0
+        for i = 3 to n step 1
+            let c = a + b
+            b = a
+            a = c
+        next
+        return a
+    end
+    sub main()
+        for i = 3 to 11
+            print fib(i)
+            let c = 1
+        next
+    end";
     var gc = new GC();
     var c = new BasicCompiler(logger);
-    var chunk = new Chunk(gc, false);
-    c.Compile(source, chunk);
+    var module = c.Compile(source, gc, false);
 
     var vm = new VM(gc, logger);
     var sb = new StringBuilder();
-    chunk.DisassembleChunk(logger, "Test Chunk");
+    module.Disassemble(logger, "Test Module");
 
     Console.WriteLine("Start interpret");
-    vm.Interpret(chunk);
+    vm.Interpret(module, "main");
 }

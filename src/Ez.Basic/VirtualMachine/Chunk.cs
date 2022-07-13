@@ -1,31 +1,22 @@
 ﻿using Ez.Basic.VirtualMachine.Attributes;
 using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace Ez.Basic.VirtualMachine
 {
     public class Chunk
     {
         private DynamicArray m_code;
-        private ConstantPool m_constants;
         private List<IAttribute> m_attributes;
 
-        public Chunk(GC gc, bool debug = true)
+        public Chunk()
         {
-            GC = gc;
             m_code = new DynamicArray();
-            m_constants = new ConstantPool(gc);
             m_attributes = new List<IAttribute>();
             
             LineNumberTable = new LineNumberTableAttribute();
             m_attributes.Add(LineNumberTable);
-            Debug = debug;
         }
-
-        public GC GC { get; }
-
-        public bool Debug { get; }
 
         public LineNumberTableAttribute LineNumberTable { get; }
         
@@ -83,19 +74,25 @@ namespace Ez.Basic.VirtualMachine
             } while (i < tmp.Length);
         }
 
-        public int AddConstant(in Value value)
+        public void UpdateVarint(int index, int value)
         {
-            return m_constants.AddConstant(value);
-        }
+            // encode new value
+            Span<byte> tmp = stackalloc byte[5];
+            tmp = tmp.Slice(0, Varint.Encode(value, tmp));
 
-        public int AddStringConstant(in string value)
-        {
-            return m_constants.AddStringConstant(value);
-        }
+            // read old value
+            var dst = m_code.AsSpan.Slice(index, tmp.Length);
+            var oldLenght = Varint.Decode(dst, out _);
 
-        public Value GetConstant(in int index)
-        {
-            return m_constants.GetConstant(index);
+
+            for(var i = 0; i < oldLenght && i < tmp.Length; i++)
+                dst[i] = tmp[i];
+
+            for(var i = oldLenght; i < tmp.Length; i++)
+                m_code.Insert(i, tmp[i]);
+
+            for(var i = tmp.Length; i < oldLenght; i++)
+                m_code.Remove<byte>(i);
         }
     }
 }

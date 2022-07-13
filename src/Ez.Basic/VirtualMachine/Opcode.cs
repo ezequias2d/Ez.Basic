@@ -32,6 +32,7 @@ namespace Ez.Basic.VirtualMachine
         BranchTrue,
         BranchFalse,
         BranchAlways,
+        Call,
         Return,
     }
 }

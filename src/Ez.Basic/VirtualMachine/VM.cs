@@ -1,9 +1,7 @@
 ﻿using Ez.Basic.VirtualMachine;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Ez.Basic.VirtualMachine
 {
@@ -11,31 +9,41 @@ namespace Ez.Basic.VirtualMachine
     {
         private readonly ILogger m_logger;
         private readonly Stack<Value> m_stack;
+        private readonly Stack<Context> m_contexts;
         private readonly GC m_gc;
-        private Chunk m_chunk;
-        private int m_PC;
+        private Module m_module;
 
         public VM(GC gc, ILogger logger)
         {
             m_logger = logger;
             m_stack = new Stack<Value>();
+            m_contexts = new Stack<Context>();
             m_gc = gc;
         }
 
-        public InterpretResult Interpret(Chunk chunk)
+        private ref Context Context => ref m_contexts.Peek();
+
+        public InterpretResult Interpret(Module module, string endpoint)
         {
-            m_chunk = chunk;
-            m_PC = 0;
-            return Run();
+            m_module = module;
+            return Run(endpoint);
         }
 
-        private InterpretResult Run()
+        private InterpretResult Run(string endpoint)
         {
+            if(!m_module.SymbolTable.Lookup(endpoint, out SymbolEntry entry))
+                throw new InvalidOperationException("The endpoint dont exist.");
+            
+            var main = entry.Data;
+
+            m_contexts.Push(new Context(main, m_module.Chunk));
+
             var sb = new StringBuilder();
             m_stack.Reset();
-            for (;;)
+            while(m_contexts.Count > 0)
             {
-                if(m_chunk.Debug)
+                ref Context context = ref Context;
+                if(m_module.Debug)
                 {
                     sb.Clear();
 
@@ -46,7 +54,7 @@ namespace Ez.Basic.VirtualMachine
                     }
                     sb.AppendLine();
 
-                    m_chunk.DisassembleInstruction(sb, m_PC);
+                    m_module.DisassembleInstruction(sb, context.PC);
                     Console.WriteLine(sb.ToString());
                 }
                 var opcode = ReadOpcode();
@@ -187,38 +195,65 @@ namespace Ez.Basic.VirtualMachine
                         break;
                     case Opcode.BranchTrue:
                         a = Peek();
-                        length = m_chunk.ReadVariant(m_PC, out offset);
+                        length = context.Chunk.ReadVariant(context.PC, out offset);
                         
                         if(offset > 0 || !a.Boolean)
-                            m_PC += length;
+                            context.PC += length;
 
                         if (a.Boolean)
-                            m_PC += offset - 1;
+                            context.PC += offset - 1;
 
                         break;
                     case Opcode.BranchFalse:
                         a = Peek();
-                        length = m_chunk.ReadVariant(m_PC, out offset);
+                        length = context.Chunk.ReadVariant(context.PC, out offset);
                         
                         if(offset > 0 || a.Boolean)
-                            m_PC += length;
+                            context.PC += length;
 
                         if (!a.Boolean)
-                            m_PC += offset - 1;
+                            context.PC += offset - 1;
 
                         break;
                     case Opcode.BranchAlways:
-                        length = m_chunk.ReadVariant(m_PC, out offset);
+                        length = context.Chunk.ReadVariant(context.PC, out offset);
                         if(offset > 0)
-                            m_PC += length;
-                        m_PC += offset - 1;
+                            context.PC += length;
+                        context.PC += offset - 1;
+                        break;
+                    case Opcode.Call:
+                    {
+                        a = Pop();
+
+                        string name = null; 
+                        if(a.IsObject)
+                            name = UnrefObject(ref a) as string;
+
+                        if(name is null)
+                            throw new NotImplementedException("The call name must be a string object.");
+                        
+                        if(!m_module.SymbolTable.Lookup(name, out entry))
+                            throw new NotImplementedException("The call name not exist.");
+
+                        m_contexts.Push(new Context(entry.Data, context.Chunk));
+                    }
                         break;
                     case Opcode.Return:
-                        //var value = Pop();
-                        //Console.WriteLine($"Return value is {value}");
-                        return InterpretResult.Ok;
+                    {
+                        if(m_contexts.Count == 1 && m_module.SymbolTable.Lookup(endpoint, out entry))
+                            if(entry.Type.HasFlag(SymbolType.Function))
+                                Console.WriteLine($"Exit: {Pop()}");
+                            
+                        m_contexts.Pop();
+                    }
+                        break;
+                    default:
+                        Console.WriteLine($"Invalid opcode {opcode}");
+                        return InterpretResult.RuntimeError;
                 }
             }
+
+            return InterpretResult.Ok;
         }
 
         private bool PopOperators(ValueType type, out Value a, out Value b)
@@ -257,8 +292,7 @@ namespace Ez.Basic.VirtualMachine
 
         private void PopN()
         {
-            m_PC += m_chunk.ReadVariant(m_PC, out var n);
-            m_stack.Pop(n);
+            m_stack.Pop(Context.ReadVariant());
         }
 
         private object UnrefObject(ref Value reference)
@@ -270,31 +304,28 @@ namespace Ez.Basic.VirtualMachine
 
         private Opcode ReadOpcode()
         {
-            return m_chunk.Read<Opcode>(m_PC++);
+            return Context.ReadOpcode();
         }
 
         private Value ReadConstant()
         {
-            m_PC += m_chunk.ReadVariant(m_PC, out var constantIndex);
-            return m_chunk.GetConstant(constantIndex);
+            return m_module.GetConstant(Context.ReadVariant());
         }
 
         private Value GetVariable()
         {
-            m_PC += m_chunk.ReadVariant(m_PC, out var offset);
-            return m_stack.Peek(offset);
+            return m_stack.Peek(Context.ReadVariant());
         }
 
         private void SetVariable(Value value)
         {
-            m_PC += m_chunk.ReadVariant(m_PC, out var offset);
-            m_stack.Peek(offset) = value;
+            m_stack.Peek(Context.ReadVariant()) = value;
             Push(value);
         }
 
         private void RuntimeError(string message)
         {
-            var line = m_chunk.LineNumberTable.GetLine(m_PC);
+            var line = Context.GetLine();
             m_logger.LogError($"[line {line}] in script");
             m_stack.Reset();
         }

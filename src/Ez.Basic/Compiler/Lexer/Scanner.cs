@@ -200,6 +200,7 @@ namespace Ez.Basic.Compiler.Lexer
                         ("xor"   , TokenType.Xor),
                         ("not"   , TokenType.Not),
                         ("def"   , TokenType.Def),
+                        ("sub"   , TokenType.Sub),
                         ("mould" , TokenType.Mould),
                         ("module", TokenType.Module),
                         ("global", TokenType.Global),
